@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>Test Upload & Send</h1>
+    
+    <div class="test-section">
+        <h2>1. Test File Upload</h2>
+        <input type="file" id="testFile" accept="*/*">
+        <button onclick="testUpload()">Upload File</button>
+        <div id="uploadResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Send Message with File</h2>
+        <input type="text" id="testNumber" placeholder="Phone number (628xxx)" value="6287758962661">
+        <input type="text" id="testMessage" placeholder="Message" value="Test message with file">
+        <select id="testType">
+            <option value="text">Text</option>
+            <option value="image">Image</option>
+            <option value="document">Document</option>
+        </select>
+        <button onclick="testSendMessage()">Send Message</button>
+        <div id="sendResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test WhatsApp Status</h2>
+        <button onclick="testStatus()">Check Status</button>
+        <div id="statusResult" class="result"></div>
+    </div>
+
+    <script>
+        let uploadedFile = null;
+
+        async function testUpload() {
+            const fileInput = document.getElementById('testFile');
+            const resultDiv = document.getElementById('uploadResult');
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<span style="color: red;">Please select a file</span>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                resultDiv.innerHTML = 'Uploading...';
+                
+                const response = await fetch('/api/upload/file', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    uploadedFile = result.file;
+                    resultDiv.innerHTML = `
+                        <span style="color: green;">✅ Upload successful!</span><br>
+                        <strong>File:</strong> ${result.file.originalName}<br>
+                        <strong>Size:</strong> ${result.file.size} bytes<br>
+                        <strong>Path:</strong> ${result.file.path}<br>
+                        <strong>URL:</strong> ${result.file.url}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Upload failed: ${result.error}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testSendMessage() {
+            const number = document.getElementById('testNumber').value;
+            const message = document.getElementById('testMessage').value;
+            const type = document.getElementById('testType').value;
+            const resultDiv = document.getElementById('sendResult');
+
+            if (!number || !message) {
+                resultDiv.innerHTML = '<span style="color: red;">Please fill number and message</span>';
+                return;
+            }
+
+            if (type !== 'text' && !uploadedFile) {
+                resultDiv.innerHTML = '<span style="color: red;">Please upload a file first for image/document message</span>';
+                return;
+            }
+
+            try {
+                resultDiv.innerHTML = 'Sending...';
+
+                const requestData = { number, message, type };
+                
+                if (type !== 'text' && uploadedFile) {
+                    requestData.fileName = uploadedFile.originalName;
+                    requestData.filePath = uploadedFile.path;
+                }
+
+                const response = await fetch('/api/messages/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <span style="color: green;">✅ Message sent successfully!</span><br>
+                        <strong>Message ID:</strong> ${result.messageId}<br>
+                        <strong>Type:</strong> ${type}<br>
+                        ${uploadedFile ? `<strong>File:</strong> ${uploadedFile.originalName}` : ''}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<span style="color: red;">❌ Send failed: ${result.error}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testStatus() {
+            const resultDiv = document.getElementById('statusResult');
+            
+            try {
+                resultDiv.innerHTML = 'Checking...';
+                
+                const response = await fetch('/api/messages/status');
+                const result = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <strong>Connected:</strong> ${result.isConnected ? '✅ Yes' : '❌ No'}<br>
+                    <strong>Status:</strong> ${result.status}<br>
+                    ${result.qrCode ? '<strong>QR Code:</strong> Available' : ''}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<span style="color: red;">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        // Auto check status on load
+        window.onload = function() {
+            testStatus();
+        };
+    </script>
+</body>
+</html>
