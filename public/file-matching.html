@@ -6,6 +6,7 @@
     <title>File Matching - WA Blast</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
@@ -30,12 +31,18 @@
             <div class="col-12">
                 <div class="alert alert-info">
                     <h5><i class="fas fa-info-circle me-2"></i>File Matching Instructions</h5>
-                    <ol class="mb-0">
+                    <ol class="mb-2">
                         <li>Upload your documents to the Documents folder</li>
                         <li>Import contacts with a "fileName" column in your Excel file</li>
                         <li>The system will match contact's fileName with actual files in Documents folder</li>
                         <li>Send blast messages with different files for each contact</li>
                     </ol>
+                    <div class="text-center">
+                        <button type="button" class="btn btn-primary" onclick="activateBlastTab()">
+                            <i class="fas fa-edit me-1"></i>
+                            Show Rich Text Editor
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -191,8 +198,36 @@
                                 Please ensure contacts are imported and files are uploaded before sending blast messages.
                             </div>
 
+                            <!-- Template Selector -->
+                            <div class="mb-3">
+                                <label for="templateSelector" class="form-label">Quick Templates</label>
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <select class="form-select" id="templateSelector" onchange="loadTemplate()">
+                                            <option value="">Select a template...</option>
+                                            <option value="simple">Simple Document Delivery</option>
+                                            <option value="formal">Formal Business Document</option>
+                                            <option value="marketing">Marketing with File</option>
+                                            <option value="notification">Document Ready Notification</option>
+                                            <option value="invoice">Invoice/Receipt Delivery</option>
+                                            <option value="certificate">Certificate Delivery</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button type="button" class="btn btn-outline-info me-2" onclick="previewTemplates()" data-bs-toggle="modal" data-bs-target="#templatePreviewModal">
+                                            <i class="fas fa-eye me-1"></i>
+                                            Preview Templates
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="clearTemplate()">
+                                            <i class="fas fa-eraser me-1"></i>
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Blast Form with Rich Text Editor -->
-                            <form id="blastFilesForm">
+                            <form id="blastFilesForm" style="display: block !important;">
                                 <div class="mb-3">
                                     <label for="blastFilesMessage" class="form-label">Message Template</label>
 
@@ -288,6 +323,29 @@
         </div>
     </div>
 
+    <!-- Template Preview Modal -->
+    <div class="modal fade" id="templatePreviewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i>
+                        Template Preview
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="templatePreviewContent">
+                        <!-- Template previews will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Modal -->
     <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
@@ -304,6 +362,195 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
     <script src="file-matching.js"></script>
+
+    <!-- Auto-fix loading issue -->
+    <script>
+        // Force hide loading modal after page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loadingModal = document.getElementById('loadingModal');
+                if (loadingModal) {
+                    loadingModal.style.display = 'none';
+                    loadingModal.classList.remove('show');
+                }
+
+                // Remove any modal backdrops
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                    backdrop.remove();
+                });
+
+                // Clean body classes
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+
+                // Show blast form and toolbar
+                const blastForm = document.getElementById('blastFilesForm');
+                if (blastForm) {
+                    blastForm.style.display = 'block';
+                    blastForm.style.visibility = 'visible';
+                    blastForm.style.opacity = '1';
+                }
+
+                // Force show toolbar
+                const toolbar = document.querySelector('.btn-toolbar');
+                if (toolbar) {
+                    toolbar.style.display = 'flex';
+                    toolbar.style.visibility = 'visible';
+                    toolbar.style.opacity = '1';
+                }
+
+                // Force show all buttons
+                document.querySelectorAll('.btn-toolbar .btn').forEach(btn => {
+                    btn.style.display = 'inline-block';
+                    btn.style.visibility = 'visible';
+                    btn.style.opacity = '1';
+                });
+            }, 1000);
+        });
+
+        // Debug and force show toolbar
+        setTimeout(() => {
+            console.log('🔧 Debugging toolbar visibility...');
+
+            const blastForm = document.getElementById('blastFilesForm');
+            const toolbar = document.querySelector('.btn-toolbar');
+            const blastTab = document.getElementById('blast-files-tab');
+
+            console.log('Blast Form:', blastForm ? 'Found' : 'Not Found');
+            console.log('Toolbar:', toolbar ? 'Found' : 'Not Found');
+            console.log('Blast Tab:', blastTab ? 'Found' : 'Not Found');
+
+            if (blastForm) {
+                console.log('Form display:', getComputedStyle(blastForm).display);
+                console.log('Form visibility:', getComputedStyle(blastForm).visibility);
+            }
+
+            if (toolbar) {
+                console.log('Toolbar display:', getComputedStyle(toolbar).display);
+                console.log('Toolbar visibility:', getComputedStyle(toolbar).visibility);
+
+                // Force show toolbar
+                toolbar.style.display = 'flex';
+                toolbar.style.visibility = 'visible';
+                toolbar.style.opacity = '1';
+                toolbar.style.height = 'auto';
+                toolbar.style.overflow = 'visible';
+
+                console.log('✅ Toolbar forced visible');
+            }
+
+            // Auto-click blast tab to ensure it's active
+            if (blastTab && !blastTab.classList.contains('active')) {
+                blastTab.click();
+                console.log('✅ Blast tab activated');
+            }
+
+            // Force activate blast tab and show content
+            setTimeout(() => {
+                // Activate blast tab
+                const blastTab = document.getElementById('blast-files-tab');
+                const blastContent = document.getElementById('blast-files');
+
+                if (blastTab && blastContent) {
+                    // Remove active from other tabs
+                    document.querySelectorAll('.nav-link').forEach(tab => {
+                        tab.classList.remove('active');
+                    });
+                    document.querySelectorAll('.tab-pane').forEach(pane => {
+                        pane.classList.remove('show', 'active');
+                    });
+
+                    // Activate blast tab
+                    blastTab.classList.add('active');
+                    blastContent.classList.add('show', 'active');
+
+                    console.log('✅ Blast tab force activated');
+
+                    // Force show toolbar after tab activation
+                    setTimeout(() => {
+                        const toolbar = document.querySelector('#blast-files .btn-toolbar');
+                        const form = document.querySelector('#blast-files #blastFilesForm');
+
+                        if (toolbar) {
+                            toolbar.style.display = 'flex';
+                            toolbar.style.visibility = 'visible';
+                            toolbar.style.opacity = '1';
+                            toolbar.style.height = 'auto';
+                            console.log('✅ Toolbar force shown');
+                        }
+
+                        if (form) {
+                            form.style.display = 'block';
+                            form.style.visibility = 'visible';
+                            form.style.opacity = '1';
+                            console.log('✅ Form force shown');
+                        }
+                    }, 200);
+                }
+            }, 3000);
+
+        }, 2000);
+
+        // Function to manually activate blast tab
+        window.activateBlastTab = function() {
+            console.log('🎯 Manual activation of blast tab...');
+
+            // Activate blast tab
+            const blastTab = document.getElementById('blast-files-tab');
+            const blastContent = document.getElementById('blast-files');
+
+            if (blastTab && blastContent) {
+                // Remove active from other tabs
+                document.querySelectorAll('.nav-link').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-pane').forEach(pane => {
+                    pane.classList.remove('show', 'active');
+                });
+
+                // Activate blast tab
+                blastTab.classList.add('active');
+                blastContent.classList.add('show', 'active');
+
+                console.log('✅ Blast tab manually activated');
+
+                // Force show toolbar and form
+                setTimeout(() => {
+                    const toolbar = document.querySelector('#blast-files .btn-toolbar');
+                    const form = document.querySelector('#blast-files #blastFilesForm');
+
+                    if (toolbar) {
+                        toolbar.style.display = 'flex';
+                        toolbar.style.visibility = 'visible';
+                        toolbar.style.opacity = '1';
+                        toolbar.style.height = 'auto';
+                        toolbar.style.overflow = 'visible';
+                        console.log('✅ Toolbar manually shown');
+                    }
+
+                    if (form) {
+                        form.style.display = 'block';
+                        form.style.visibility = 'visible';
+                        form.style.opacity = '1';
+                        console.log('✅ Form manually shown');
+                    }
+
+                    // Scroll to the editor
+                    const messageTextarea = document.getElementById('blastFilesMessage');
+                    if (messageTextarea) {
+                        messageTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        messageTextarea.focus();
+                    }
+
+                    alert('✅ Rich Text Editor is now active! You can see the formatting toolbar above the message box.');
+                }, 100);
+            } else {
+                alert('❌ Could not find blast tab elements. Please refresh the page.');
+            }
+        };
+    </script>
 </body>
 </html>

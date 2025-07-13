@@ -228,13 +228,21 @@ router.post('/blast', async (req, res) => {
             }
 
             // Emit progress update
-            req.app.get('io')?.emit('blast-progress', {
+            const progressData = {
                 total,
                 sent,
                 failed,
                 current: i + 1,
                 percentage: Math.round(((i + 1) / total) * 100)
-            });
+            };
+
+            console.log('[BLAST] Emitting progress:', progressData);
+            const io = req.app.get('io');
+            console.log('[BLAST] IO instance:', io ? 'Available' : 'Not available');
+            if (io) {
+                io.emit('blast-progress', progressData);
+                console.log('[BLAST] Progress event emitted');
+            }
 
             // Add delay between messages
             if (i < contacts.length - 1) {
@@ -251,6 +259,23 @@ router.post('/blast', async (req, res) => {
             duration: `${Math.round(duration / 1000)}s`,
             successRate: `${Math.round((sent / total) * 100)}%`
         });
+
+        // Emit blast completion event
+        const completionData = {
+            total,
+            successful: sent,
+            failed,
+            duration: `${Math.round(duration / 1000)}s`,
+            successRate: Math.round((sent / total) * 100)
+        };
+
+        console.log('[BLAST] Emitting completion:', completionData);
+        const io = req.app.get('io');
+        console.log('[BLAST] IO instance for completion:', io ? 'Available' : 'Not available');
+        if (io) {
+            io.emit('blast-complete', completionData);
+            console.log('[BLAST] Completion event emitted');
+        }
 
         res.json({
             success: true,
@@ -427,6 +452,17 @@ router.post('/blast-with-files', async (req, res) => {
             successRate: `${Math.round((sent / total) * 100)}%`
         });
 
+        // Emit file blast completion event
+        req.app.get('io')?.emit('blast-complete', {
+            total,
+            successful: sent,
+            failed,
+            filesSent: sent,
+            unmatched: matchingResult.unmatched.length,
+            duration: `${Math.round(duration / 1000)}s`,
+            successRate: Math.round((sent / total) * 100)
+        });
+
         res.json({
             success: true,
             summary: {
@@ -451,6 +487,30 @@ router.post('/blast-with-files', async (req, res) => {
 // Get WhatsApp status
 router.get('/status', (req, res) => {
     res.json(whatsappService.getStatus());
+});
+
+// Force new connection with fresh QR
+router.post('/force-new-connection', async (req, res) => {
+    try {
+        await logger.info('Force new connection requested');
+        await whatsappService.forceNewConnection();
+        res.json({ success: true, message: 'Generating new QR code...' });
+    } catch (error) {
+        await logger.error('Error forcing new connection', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Disconnect WhatsApp
+router.post('/disconnect', async (req, res) => {
+    try {
+        await logger.info('Disconnect requested');
+        await whatsappService.disconnect();
+        res.json({ success: true, message: 'WhatsApp disconnected' });
+    } catch (error) {
+        await logger.error('Error disconnecting', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 module.exports = router;

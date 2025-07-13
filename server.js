@@ -67,6 +67,16 @@ app.get('/file-matching.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'file-matching.html'));
 });
 
+// Serve test buttons page
+app.get('/test-buttons.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'test-buttons.html'));
+});
+
+// Serve test notifications page
+app.get('/test-notifications.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'test-notifications.html'));
+});
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
@@ -81,7 +91,11 @@ io.on('connection', (socket) => {
     socket.on('connect-whatsapp', () => {
         whatsappService.connect();
     });
-    
+
+    socket.on('force-new-connection', () => {
+        whatsappService.forceNewConnection();
+    });
+
     socket.on('disconnect-whatsapp', () => {
         whatsappService.disconnect();
     });

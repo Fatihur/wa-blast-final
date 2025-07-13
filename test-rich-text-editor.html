@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rich Text Editor Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h2>🧪 Rich Text Editor Test</h2>
+                <p class="text-muted">Test the rich text editor functionality for file matching</p>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Rich Text Editor Demo</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Template Selector -->
+                        <div class="mb-3">
+                            <label for="templateSelector" class="form-label">Quick Templates</label>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <select class="form-select" id="templateSelector" onchange="loadTemplate()">
+                                        <option value="">Select a template...</option>
+                                        <option value="simple">Simple Document Delivery</option>
+                                        <option value="formal">Formal Business Document</option>
+                                        <option value="marketing">Marketing with File</option>
+                                        <option value="notification">Document Ready Notification</option>
+                                        <option value="invoice">Invoice/Receipt Delivery</option>
+                                        <option value="certificate">Certificate Delivery</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="button" class="btn btn-outline-info me-2" onclick="previewTemplates()" data-bs-toggle="modal" data-bs-target="#templatePreviewModal">
+                                        <i class="fas fa-eye me-1"></i>
+                                        Preview Templates
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="clearTemplate()">
+                                        <i class="fas fa-eraser me-1"></i>
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rich Text Toolbar -->
+                        <div class="mb-3">
+                            <label for="blastFilesMessage" class="form-label">Message Template</label>
+                            
+                            <div class="btn-toolbar mb-2" role="toolbar">
+                                <div class="btn-group me-2" role="group">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('bold')" title="Bold">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('italic')" title="Italic">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('strikethrough')" title="Strikethrough">
+                                        <i class="fas fa-strikethrough"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('monospace')" title="Monospace">
+                                        <i class="fas fa-code"></i>
+                                    </button>
+                                </div>
+                                <div class="btn-group me-2" role="group" id="standardFileVariables">
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('name')" title="Insert Name">
+                                        {{name}}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('number')" title="Insert Number">
+                                        {{number}}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('email')" title="Insert Email">
+                                        {{email}}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('company')" title="Insert Company">
+                                        {{company}}
+                                    </button>
+                                </div>
+                                <div class="btn-group me-2" role="group" id="fileSpecificVariables">
+                                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="insertFileVariable('fileName')" title="Insert File Name">
+                                        {{fileName}}
+                                    </button>
+                                </div>
+                                <div class="btn-group me-2" role="group" id="customFileVariables">
+                                    <!-- Dynamic variables will be added here -->
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('date')" title="Insert Date">
+                                        {{date}}
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('time')" title="Insert Time">
+                                        {{time}}
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <textarea class="form-control" id="blastFilesMessage" rows="8" 
+                                      placeholder="Type your message here...&#10;&#10;Use toolbar buttons or type: *bold*, _italic_, ~strikethrough~, \`\`\`monospace\`\`\`&#10;Use variables from your imported file headers">Hello {{name}},
+
+Your document *{{fileName}}* is ready for download.
+
+Use the toolbar above to format your message and add variables.
+
+Best regards,
+{{company}}</textarea>
+                            
+                            <!-- Live Preview -->
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleFilePreview()" id="filePreviewToggle">
+                                    <i class="fas fa-eye me-1"></i>
+                                    Show Preview
+                                </button>
+                            </div>
+                            
+                            <div id="fileMessagePreview" class="mt-2 p-3 border rounded bg-light" style="display: none;">
+                                <h6>Message Preview:</h6>
+                                <div id="filePreviewContent" class="preview-content"></div>
+                            </div>
+                            
+                            <div class="form-text">
+                                <strong>Available variables:</strong> <span id="availableFileVariables">{{name}}, {{number}}, {{email}}, {{company}}, {{fileName}}, {{date}}, {{time}}</span>
+                            </div>
+                        </div>
+
+                        <!-- Test Buttons -->
+                        <div class="row">
+                            <div class="col-12">
+                                <h6>Test Functions:</h6>
+                                <button type="button" class="btn btn-primary me-2" onclick="testFormatting()">
+                                    <i class="fas fa-test-tube me-1"></i>
+                                    Test Formatting
+                                </button>
+                                <button type="button" class="btn btn-success me-2" onclick="testVariables()">
+                                    <i class="fas fa-code me-1"></i>
+                                    Test Variables
+                                </button>
+                                <button type="button" class="btn btn-info me-2" onclick="toggleFilePreview()">
+                                    <i class="fas fa-eye me-1"></i>
+                                    Toggle Preview
+                                </button>
+                                <button type="button" class="btn btn-warning" onclick="clearTemplate()">
+                                    <i class="fas fa-eraser me-1"></i>
+                                    Clear All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Preview Modal -->
+    <div class="modal fade" id="templatePreviewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i>
+                        Template Preview
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="templatePreviewContent">
+                        <!-- Template previews will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="file-matching.js"></script>
+    
+    <script>
+        // Test functions
+        function testFormatting() {
+            const textarea = document.getElementById('blastFilesMessage');
+            textarea.value = 'This is *bold*, this is _italic_, this is ~strikethrough~, and this is ```monospace``` text.';
+            updateFilePreview();
+            alert('Formatting test applied! Check the preview.');
+        }
+
+        function testVariables() {
+            const textarea = document.getElementById('blastFilesMessage');
+            textarea.value = 'Hello {{name}}, your file {{fileName}} is ready! Contact: {{number}}, Email: {{email}}, Company: {{company}}, Date: {{date}}, Time: {{time}}';
+            updateFilePreview();
+            alert('Variables test applied! Check the preview.');
+        }
+
+        // Initialize preview on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                updateFilePreview();
+                document.getElementById('filePreviewToggle').click();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

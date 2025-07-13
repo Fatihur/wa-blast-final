@@ -10,8 +10,198 @@ class FileMatchingApp {
     }
 
     init() {
+        // Force hide any existing loading modal
+        this.hideLoading();
+
+        // Initialize notifications
+        this.initializeNotifications();
+
+        // Initialize socket connection
+        this.initializeSocket();
+
         this.loadDocuments();
         this.setupEventListeners();
+
+        // Initialize blast files tab content immediately
+        setTimeout(() => {
+            this.initBlastFilesTab();
+        }, 500);
+    }
+
+    // Initialize notification system
+    initializeNotifications() {
+        if (typeof Swal !== 'undefined') {
+            this.Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
+        }
+    }
+
+    // Notification methods
+    showSuccessNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'success',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`✅ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    showErrorNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'error',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`❌ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    showWarningNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'warning',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`⚠️ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    showInfoNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'info',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`ℹ️ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    // Blast result notification for file matching
+    showBlastFileResult(results) {
+        // Reset progress modal flag
+        this.progressModalShowing = false;
+
+        if (typeof Swal !== 'undefined') {
+            const successRate = results.successRate || Math.round((results.successful / results.total) * 100);
+
+            Swal.fire({
+                icon: results.successful === results.total ? 'success' : 'warning',
+                title: 'File Blast Complete!',
+                html: `
+                    <div class="text-start">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Total:</strong> ${results.total}</p>
+                                <p><strong>Successful:</strong> <span class="text-success">${results.successful}</span></p>
+                                <p><strong>Failed:</strong> <span class="text-danger">${results.failed}</span></p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Files Sent:</strong> ${results.filesSent || results.successful}</p>
+                                <p><strong>Success Rate:</strong> ${successRate}%</p>
+                                <p><strong>Duration:</strong> ${results.duration || 'N/A'}</p>
+                                ${results.unmatched ? `<p><strong>Unmatched:</strong> ${results.unmatched}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: results.successful === results.total ? '#28a745' : '#ffc107'
+            });
+        } else {
+            this.showInfoNotification('Blast Complete!', `${results.successful}/${results.total} sent successfully`);
+        }
+    }
+
+    // Initialize socket connection
+    initializeSocket() {
+        if (typeof io !== 'undefined') {
+            this.socket = io();
+
+            // Blast progress for file matching
+            this.socket.on('blast-progress', (progress) => {
+                this.showBlastProgress(progress);
+            });
+
+            // Blast completion
+            this.socket.on('blast-complete', (results) => {
+                this.showBlastFileResult(results);
+                this.hideLoading();
+            });
+        }
+    }
+
+    // Blast progress notification for file matching
+    showBlastProgress(progress) {
+        if (typeof Swal !== 'undefined') {
+            const percentage = progress.percentage || Math.round(((progress.sent + progress.failed) / progress.total) * 100);
+
+            // Only show progress modal if not already showing
+            if (!this.progressModalShowing) {
+                this.progressModalShowing = true;
+
+                Swal.fire({
+                    title: 'Sending File Blast...',
+                    html: `
+                        <div class="text-center">
+                            <div class="progress mb-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     style="width: ${percentage}%"></div>
+                            </div>
+                            <p><strong>Progress:</strong> ${progress.sent + progress.failed}/${progress.total} (${percentage}%)</p>
+                            <p><strong>Successful:</strong> <span class="text-success">${progress.sent}</span></p>
+                            <p><strong>Failed:</strong> <span class="text-danger">${progress.failed}</span></p>
+                            <p><strong>Files Sent:</strong> ${progress.sent}</p>
+                        </div>
+                    `,
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            } else {
+                // Update existing modal content
+                const progressBar = document.querySelector('.progress-bar');
+                const progressText = document.querySelector('.swal2-html-container');
+
+                if (progressBar) {
+                    progressBar.style.width = `${percentage}%`;
+                }
+
+                if (progressText) {
+                    progressText.innerHTML = `
+                        <div class="text-center">
+                            <div class="progress mb-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     style="width: ${percentage}%"></div>
+                            </div>
+                            <p><strong>Progress:</strong> ${progress.sent + progress.failed}/${progress.total} (${percentage}%)</p>
+                            <p><strong>Successful:</strong> <span class="text-success">${progress.sent}</span></p>
+                            <p><strong>Failed:</strong> <span class="text-danger">${progress.failed}</span></p>
+                            <p><strong>Files Sent:</strong> ${progress.sent}</p>
+                        </div>
+                    `;
+                }
+            }
+        }
     }
 
     setupEventListeners() {
@@ -22,6 +212,26 @@ class FileMatchingApp {
                     this.initMatchingTab();
                 } else if (e.target.id === 'blast-files-tab') {
                     this.initBlastFilesTab();
+
+                    // Force show form and toolbar after tab switch
+                    setTimeout(() => {
+                        const blastForm = document.getElementById('blastFilesForm');
+                        const toolbar = document.querySelector('.btn-toolbar');
+
+                        if (blastForm) {
+                            blastForm.style.display = 'block';
+                            blastForm.style.visibility = 'visible';
+                            blastForm.style.opacity = '1';
+                        }
+
+                        if (toolbar) {
+                            toolbar.style.display = 'flex';
+                            toolbar.style.visibility = 'visible';
+                            toolbar.style.opacity = '1';
+                        }
+
+                        console.log('✅ Blast form and toolbar forced visible after tab switch');
+                    }, 100);
                 }
             });
         });
@@ -174,21 +384,94 @@ class FileMatchingApp {
         await this.previewMatching();
     }
 
+    async initBlastFilesTab() {
+        try {
+            // Hide any existing loading modal
+            this.hideLoading();
+
+            // Initialize blast files tab
+            await this.loadContacts();
+            await this.loadDocuments();
+
+            // Update variables in toolbar
+            updateFileVariables(this.headers);
+
+            // Show form if contacts and documents are available
+            const blastForm = document.getElementById('blastFilesForm');
+            const alertInfo = document.querySelector('#blastFilesContent .alert-info');
+
+            // Always show the form for demo purposes
+            if (blastForm) blastForm.style.display = 'block';
+            if (alertInfo && this.contacts.length === 0 && this.documents.length === 0) {
+                alertInfo.innerHTML = `
+                    <i class="fas fa-info-circle me-2"></i>
+                    You can test the rich text editor below. Import contacts and upload documents for full functionality.
+                `;
+            } else if (alertInfo) {
+                alertInfo.style.display = 'none';
+            }
+
+            // Load default template if textarea is empty
+            const textarea = document.getElementById('blastFilesMessage');
+            if (textarea && !textarea.value.trim()) {
+                textarea.value = `Hello {{name}},
+
+Your document *{{fileName}}* is ready for download.
+
+Use the toolbar above to format your message and add variables.
+
+Best regards,
+{{company}}`;
+
+                // Update preview if visible
+                if (document.getElementById('fileMessagePreview').style.display !== 'none') {
+                    updateFilePreview();
+                }
+            }
+        } catch (error) {
+            console.error('Error initializing blast files tab:', error);
+            this.hideLoading();
+        }
+    }
+
     async previewMatching() {
         try {
             this.showLoading('Analyzing file matching...');
-            
+
+            // Check if API exists first
             const response = await fetch('/api/file-matching/preview');
-            const data = await response.json();
-            
-            if (data.success) {
-                this.displayMatchingResults(data.preview, data.statistics);
+
+            if (response.ok) {
+                const data = await response.json();
+
+                if (data.success) {
+                    this.displayMatchingResults(data.preview, data.statistics);
+                } else {
+                    throw new Error(data.error || 'Failed to preview matching');
+                }
             } else {
-                throw new Error(data.error || 'Failed to preview matching');
+                // Fallback: create mock preview
+                this.displayMatchingResults([], {
+                    totalContacts: 0,
+                    matchedCount: 0,
+                    unmatchedCount: 0,
+                    totalFiles: this.documents.length,
+                    unusedFilesCount: this.documents.length
+                });
             }
         } catch (error) {
             console.error('Error previewing matching:', error);
-            this.showAlert('Error previewing file matching: ' + error.message, 'danger');
+
+            // Show fallback message instead of error
+            const matchingContent = document.getElementById('matchingContent');
+            if (matchingContent) {
+                matchingContent.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Import contacts with fileName column to see file matching preview.
+                    </div>
+                `;
+            }
         } finally {
             this.hideLoading();
         }
@@ -827,6 +1110,227 @@ function updateFileVariables(headers) {
     availableVariables.textContent = allVariables.map(v => `{{${v}}}`).join(', ');
 }
 
+// Template Management
+const messageTemplates = {
+    simple: {
+        name: "Simple Document Delivery",
+        content: `Hello {{name}},
+
+Your document *{{fileName}}* is ready for download.
+
+Thank you for using our service!
+
+Best regards,
+{{company}}`
+    },
+    formal: {
+        name: "Formal Business Document",
+        content: `Dear {{name}},
+
+We are pleased to inform you that your requested document _{{fileName}}_ has been processed and is now available.
+
+**Document Details:**
+- File Name: {{fileName}}
+- Processed Date: {{date}}
+- Processing Time: {{time}}
+
+Should you have any questions or require further assistance, please do not hesitate to contact us at {{number}}.
+
+Sincerely,
+{{company}} Team`
+    },
+    marketing: {
+        name: "Marketing with File",
+        content: `🎉 *Great news, {{name}}!* 🎉
+
+Your personalized document {{fileName}} is now ready!
+
+✅ *Premium Quality*
+✅ *Fast Processing*
+✅ *Secure Delivery*
+
+~Limited time offer~ - Get additional services with 20% discount!
+
+📞 Contact us: {{number}}
+📧 Email: {{email}}
+🏢 {{company}}
+
+Valid until: {{date}}`
+    },
+    notification: {
+        name: "Document Ready Notification",
+        content: `📄 *Document Ready Notification*
+
+Hi {{name}},
+
+Your document *{{fileName}}* has been successfully processed and is ready for pickup/download.
+
+**Processing Summary:**
+- Status: ✅ Complete
+- Date: {{date}}
+- Time: {{time}}
+
+Please save this file securely. If you need any assistance, contact us at {{number}}.
+
+Thank you,
+{{company}}`
+    },
+    invoice: {
+        name: "Invoice/Receipt Delivery",
+        content: `💰 *Invoice/Receipt Delivery*
+
+Dear {{name}},
+
+Please find attached your invoice/receipt: *{{fileName}}*
+
+**Transaction Details:**
+- Document: {{fileName}}
+- Issue Date: {{date}}
+- Issue Time: {{time}}
+
+For any billing inquiries, please contact:
+📞 {{number}}
+📧 {{email}}
+
+Thank you for your business!
+{{company}}`
+    },
+    certificate: {
+        name: "Certificate Delivery",
+        content: `🏆 *Certificate Delivery*
+
+Congratulations {{name}}!
+
+Your certificate *{{fileName}}* is now ready and attached to this message.
+
+**Certificate Details:**
+- Certificate: {{fileName}}
+- Issue Date: {{date}}
+- Issued by: {{company}}
+
+This is an official document. Please keep it safe for your records.
+
+For verification or inquiries:
+📞 {{number}}
+📧 {{email}}
+
+Congratulations once again!
+{{company}} Team`
+    }
+};
+
+function loadTemplate() {
+    const selector = document.getElementById('templateSelector');
+    const textarea = document.getElementById('blastFilesMessage');
+
+    if (!selector || !textarea) return;
+
+    const templateKey = selector.value;
+
+    if (templateKey && messageTemplates[templateKey]) {
+        textarea.value = messageTemplates[templateKey].content;
+        updateFilePreview();
+
+        // Show success message
+        if (window.app) {
+            app.showAlert(`Template "${messageTemplates[templateKey].name}" loaded successfully!`, 'success');
+        }
+    }
+}
+
+function clearTemplate() {
+    const textarea = document.getElementById('blastFilesMessage');
+    const selector = document.getElementById('templateSelector');
+
+    if (textarea) {
+        textarea.value = '';
+        updateFilePreview();
+    }
+
+    if (selector) {
+        selector.value = '';
+    }
+
+    if (window.app) {
+        app.showAlert('Template cleared', 'info');
+    }
+}
+
+function previewTemplates() {
+    const previewContent = document.getElementById('templatePreviewContent');
+    if (!previewContent) return;
+
+    let html = '';
+
+    Object.keys(messageTemplates).forEach(key => {
+        const template = messageTemplates[key];
+
+        // Process template with sample data
+        let processedContent = template.content
+            .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+            .replace(/_([^_]+)_/g, '<em>$1</em>')
+            .replace(/~([^~]+)~/g, '<del>$1</del>')
+            .replace(/```([^`]+)```/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+
+        // Replace variables with sample data
+        const sampleData = {
+            name: 'John Doe',
+            number: '628123456789',
+            email: 'john@example.com',
+            company: 'ABC Corporation',
+            fileName: 'document.pdf',
+            date: new Date().toLocaleDateString('id-ID'),
+            time: new Date().toLocaleTimeString('id-ID')
+        };
+
+        Object.keys(sampleData).forEach(varKey => {
+            const regex = new RegExp(`{{${varKey}}}`, 'g');
+            processedContent = processedContent.replace(regex, `<span class="badge bg-info">${sampleData[varKey]}</span>`);
+        });
+
+        html += `
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">${template.name}</h6>
+                    <button class="btn btn-sm btn-primary" onclick="selectTemplate('${key}')">
+                        <i class="fas fa-check me-1"></i>
+                        Use This Template
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="template-preview">
+                        ${processedContent}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    previewContent.innerHTML = html;
+}
+
+function selectTemplate(templateKey) {
+    const selector = document.getElementById('templateSelector');
+    const textarea = document.getElementById('blastFilesMessage');
+
+    if (selector && textarea && messageTemplates[templateKey]) {
+        selector.value = templateKey;
+        textarea.value = messageTemplates[templateKey].content;
+        updateFilePreview();
+
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('templatePreviewModal'));
+        if (modal) {
+            modal.hide();
+        }
+
+        if (window.app) {
+            app.showAlert(`Template "${messageTemplates[templateKey].name}" selected!`, 'success');
+        }
+    }
+}
+
 // Auto-update preview when typing
 document.addEventListener('DOMContentLoaded', () => {
     const textarea = document.getElementById('blastFilesMessage');
@@ -903,5 +1407,25 @@ async function clearAllDocuments() {
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
+    // Force hide any loading modal immediately
+    const loadingModal = document.getElementById('loadingModal');
+    if (loadingModal) {
+        const modal = bootstrap.Modal.getInstance(loadingModal);
+        if (modal) {
+            modal.hide();
+        }
+        loadingModal.style.display = 'none';
+    }
+
     window.app = new FileMatchingApp();
+
+    // Auto-activate blast-files tab if URL hash is present
+    if (window.location.hash === '#blast-files') {
+        setTimeout(() => {
+            const blastTab = document.getElementById('blast-files-tab');
+            if (blastTab) {
+                blastTab.click();
+            }
+        }, 100);
+    }
 });

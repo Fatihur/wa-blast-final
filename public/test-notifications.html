@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Notifications - WA Blast</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>🧪 Notification Test Page</h2>
+        <p>Test all notification types and message result displays.</p>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Toast Notifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="testSuccess()">
+                                <i class="fas fa-check me-2"></i>
+                                Test Success Toast
+                            </button>
+                            <button class="btn btn-danger" onclick="testError()">
+                                <i class="fas fa-times me-2"></i>
+                                Test Error Toast
+                            </button>
+                            <button class="btn btn-warning" onclick="testWarning()">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Test Warning Toast
+                            </button>
+                            <button class="btn btn-info" onclick="testInfo()">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Test Info Toast
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Message Result Modals</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="testMessageSuccess()">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Test Message Success
+                            </button>
+                            <button class="btn btn-danger" onclick="testMessageError()">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Test Message Error
+                            </button>
+                            <button class="btn btn-primary" onclick="testBlastProgress()">
+                                <i class="fas fa-broadcast-tower me-2"></i>
+                                Test Blast Progress
+                            </button>
+                            <button class="btn btn-success" onclick="testBlastComplete()">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Test Blast Complete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Import Notifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="testImportSuccess()">
+                                <i class="fas fa-upload me-2"></i>
+                                Test Import Success
+                            </button>
+                            <button class="btn btn-warning" onclick="testImportWarning()">
+                                <i class="fas fa-upload me-2"></i>
+                                Test Import with Warnings
+                            </button>
+                            <button class="btn btn-danger" onclick="testImportError()">
+                                <i class="fas fa-upload me-2"></i>
+                                Test Import Error
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>File Matching Notifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="testFileBlastSuccess()">
+                                <i class="fas fa-file me-2"></i>
+                                Test File Blast Success
+                            </button>
+                            <button class="btn btn-warning" onclick="testFileBlastPartial()">
+                                <i class="fas fa-file me-2"></i>
+                                Test File Blast Partial
+                            </button>
+                            <button class="btn btn-info" onclick="testFileUpload()">
+                                <i class="fas fa-cloud-upload me-2"></i>
+                                Test File Upload
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <a href="/" class="btn btn-primary">
+                <i class="fas fa-arrow-left me-2"></i>
+                Back to Main Page
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    
+    <script>
+        // Initialize Toast
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+
+        // Toast notifications
+        function testSuccess() {
+            Toast.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: 'This is a success notification'
+            });
+        }
+
+        function testError() {
+            Toast.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: 'This is an error notification'
+            });
+        }
+
+        function testWarning() {
+            Toast.fire({
+                icon: 'warning',
+                title: 'Warning!',
+                text: 'This is a warning notification'
+            });
+        }
+
+        function testInfo() {
+            Toast.fire({
+                icon: 'info',
+                title: 'Info!',
+                text: 'This is an info notification'
+            });
+        }
+
+        // Message result modals
+        function testMessageSuccess() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Message Sent Successfully!',
+                html: `
+                    <div class="text-start">
+                        <p><strong>To:</strong> +62812345678</p>
+                        <p><strong>Type:</strong> text</p>
+                        <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            });
+        }
+
+        function testMessageError() {
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed to Send Message',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Error:</strong> WhatsApp not connected</p>
+                        <p><strong>To:</strong> +62812345678</p>
+                        <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+
+        function testBlastProgress() {
+            Swal.fire({
+                title: 'Sending Blast Messages...',
+                html: `
+                    <div class="text-center">
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 style="width: 65%"></div>
+                        </div>
+                        <p><strong>Progress:</strong> 65/100 (65%)</p>
+                        <p><strong>Failed:</strong> 3</p>
+                        <p><strong>Current:</strong> 68</p>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+        }
+
+        function testBlastComplete() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Blast Complete!',
+                html: `
+                    <div class="text-start">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Total:</strong> 100</p>
+                                <p><strong>Successful:</strong> <span class="text-success">95</span></p>
+                                <p><strong>Failed:</strong> <span class="text-danger">5</span></p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Success Rate:</strong> 95%</p>
+                                <p><strong>Duration:</strong> 3m 25s</p>
+                                <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            });
+        }
+
+        function testImportSuccess() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Contacts Imported Successfully!',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Valid Contacts:</strong> 150</p>
+                        <p><strong>New:</strong> 120</p>
+                        <p><strong>Duplicates:</strong> 30</p>
+                        <p><strong>File:</strong> contacts.xlsx</p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            });
+        }
+
+        function testImportWarning() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Contacts Imported Successfully!',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Valid Contacts:</strong> 120</p>
+                        <p><strong>New:</strong> 100</p>
+                        <p><strong>Duplicates:</strong> 20</p>
+                        <p><strong>Invalid:</strong> <span class="text-warning">15</span></p>
+                        <p><strong>File:</strong> contacts_mixed.xlsx</p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            });
+        }
+
+        function testImportError() {
+            Toast.fire({
+                icon: 'error',
+                title: 'Import Failed',
+                text: 'Invalid file format. Please use Excel or CSV files.'
+            });
+        }
+
+        function testFileBlastSuccess() {
+            Swal.fire({
+                icon: 'success',
+                title: 'File Blast Complete!',
+                html: `
+                    <div class="text-start">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Total:</strong> 50</p>
+                                <p><strong>Successful:</strong> <span class="text-success">50</span></p>
+                                <p><strong>Failed:</strong> <span class="text-danger">0</span></p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Files Sent:</strong> 50</p>
+                                <p><strong>Success Rate:</strong> 100%</p>
+                                <p><strong>Duration:</strong> 2m 15s</p>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            });
+        }
+
+        function testFileBlastPartial() {
+            Swal.fire({
+                icon: 'warning',
+                title: 'File Blast Complete!',
+                html: `
+                    <div class="text-start">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Total:</strong> 50</p>
+                                <p><strong>Successful:</strong> <span class="text-success">42</span></p>
+                                <p><strong>Failed:</strong> <span class="text-danger">8</span></p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Files Sent:</strong> 42</p>
+                                <p><strong>Success Rate:</strong> 84%</p>
+                                <p><strong>Duration:</strong> 2m 45s</p>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#ffc107'
+            });
+        }
+
+        function testFileUpload() {
+            Toast.fire({
+                icon: 'success',
+                title: 'Files Uploaded',
+                text: '5 files uploaded successfully to documents folder'
+            });
+        }
+    </script>
+</body>
+</html>

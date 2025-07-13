@@ -23,25 +23,32 @@ class WhatsAppService {
         this.io = io;
     }
 
-    async connect() {
+    async connect(forceQR = false) {
         try {
-            await logger.whatsapp('Attempting to connect to WhatsApp');
+            await logger.whatsapp('Attempting to connect to WhatsApp', { forceQR });
             this.connectionStatus = 'connecting';
             this.emitStatus();
+
+            // If force QR, clear session first
+            if (forceQR) {
+                await this.clearSession();
+            }
 
             // Ensure session directory exists
             await fs.ensureDir(this.sessionPath);
 
             const { state, saveCreds } = await useMultiFileAuthState(this.sessionPath);
             const { version, isLatest } = await fetchLatestBaileysVersion();
-            
+
             await logger.whatsapp(`Using WA v${version.join('.')}, isLatest: ${isLatest}`);
 
             this.sock = makeWASocket({
                 version,
                 auth: state,
                 printQRInTerminal: true,
-                browser: ['WA Blast', 'Chrome', '1.0.0']
+                browser: ['WA Blast', 'Chrome', '1.0.0'],
+                // Force QR generation by not using cached auth
+                ...(forceQR && { auth: undefined })
             });
 
             this.sock.ev.on('connection.update', async (update) => {
@@ -89,16 +96,83 @@ class WhatsAppService {
     }
 
     async disconnect() {
-        if (this.sock) {
-            await this.sock.logout();
-            this.sock = null;
+        try {
+            if (this.sock) {
+                await logger.whatsapp('Disconnecting WhatsApp...');
+                await this.sock.logout();
+                this.sock = null;
+            }
+
             this.isConnected = false;
             this.connectionStatus = 'disconnected';
             this.qrCode = null;
             this.emitStatus();
-            
-            // Clear session
-            await fs.remove(this.sessionPath);
+
+            // Clear session completely
+            await this.clearSession();
+            await logger.whatsapp('WhatsApp disconnected and session cleared');
+
+        } catch (error) {
+            await logger.error('Error during disconnect', error);
+            // Force reset even if error
+            this.sock = null;
+            this.isConnected = false;
+            this.connectionStatus = 'disconnected';
+            this.qrCode = null;
+            await this.clearSession();
+            this.emitStatus();
+        }
+    }
+
+    async clearSession() {
+        try {
+            // Remove session directory completely
+            if (await fs.pathExists(this.sessionPath)) {
+                await fs.remove(this.sessionPath);
+                await logger.whatsapp('Session directory removed');
+            }
+
+            // Ensure directory is recreated for next connection
+            await fs.ensureDir(this.sessionPath);
+            await logger.whatsapp('Fresh session directory created');
+
+        } catch (error) {
+            await logger.error('Error clearing session', error);
+        }
+    }
+
+    async forceNewConnection() {
+        try {
+            await logger.whatsapp('Forcing new connection with fresh session...');
+
+            // Disconnect if connected
+            if (this.sock) {
+                try {
+                    await this.sock.logout();
+                } catch (e) {
+                    // Ignore logout errors
+                }
+                this.sock = null;
+            }
+
+            // Clear session completely
+            await this.clearSession();
+
+            // Reset state
+            this.isConnected = false;
+            this.connectionStatus = 'disconnected';
+            this.qrCode = null;
+            this.emitStatus();
+
+            // Wait a moment then connect
+            setTimeout(() => {
+                this.connect();
+            }, 1000);
+
+        } catch (error) {
+            await logger.error('Error forcing new connection', error);
+            this.connectionStatus = 'error';
+            this.emitStatus();
         }
     }
 

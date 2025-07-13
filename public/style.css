@@ -281,6 +281,16 @@ body {
     border-radius: 0.375rem 0.375rem 0 0;
     border: 1px solid #dee2e6;
     border-bottom: none;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Force show blast form */
+#blastFilesForm {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .btn-toolbar .btn-group {
@@ -364,6 +374,73 @@ body {
     }
 }
 
+/* Template Preview */
+.template-preview {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    min-height: 120px;
+}
+
+.template-preview .badge {
+    font-size: 0.75rem;
+    margin: 0 2px;
+}
+
+.template-preview strong {
+    font-weight: bold;
+}
+
+.template-preview em {
+    font-style: italic;
+}
+
+.template-preview del {
+    text-decoration: line-through;
+}
+
+.template-preview code {
+    background-color: #e9ecef;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+
+/* Template Selector */
+#templateSelector {
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+#templateSelector:focus {
+    border-color: #25d366;
+    box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
+}
+
+/* Template Modal */
+#templatePreviewModal .modal-dialog {
+    max-width: 800px;
+}
+
+#templatePreviewModal .card {
+    transition: transform 0.2s ease-in-out;
+}
+
+#templatePreviewModal .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Template buttons */
+.btn-outline-info:hover {
+    background-color: #0dcaf0;
+    border-color: #0dcaf0;
+    color: white;
+}
+
 /* Responsive toolbar */
 @media (max-width: 768px) {
     .btn-toolbar {
@@ -377,6 +454,16 @@ body {
     .btn-toolbar .btn {
         font-size: 0.75rem;
         padding: 0.2rem 0.4rem;
+    }
+
+    #templatePreviewModal .modal-dialog {
+        max-width: 95%;
+        margin: 1rem auto;
+    }
+
+    .template-preview {
+        font-size: 0.875rem;
+        padding: 0.75rem;
     }
 }
 

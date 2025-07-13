@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Rich Text Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .btn-toolbar {
+            background-color: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 0.375rem 0.375rem 0 0;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            display: flex !important;
+        }
+        
+        #blastFilesMessage {
+            border-radius: 0 0 0.375rem 0.375rem;
+            border-top: none;
+        }
+        
+        .preview-content {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>🧪 Simple Rich Text Editor Test</h2>
+        <p class="text-muted">Testing rich text editor functionality</p>
+        
+        <div class="card">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="blastFilesMessage" class="form-label">Message Template</label>
+                    
+                    <!-- Rich Text Toolbar -->
+                    <div class="btn-toolbar mb-2" role="toolbar">
+                        <div class="btn-group me-2" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('bold')" title="Bold">
+                                <i class="fas fa-bold"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('italic')" title="Italic">
+                                <i class="fas fa-italic"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('strikethrough')" title="Strikethrough">
+                                <i class="fas fa-strikethrough"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('monospace')" title="Monospace">
+                                <i class="fas fa-code"></i>
+                            </button>
+                        </div>
+                        <div class="btn-group me-2" role="group">
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('name')" title="Insert Name">
+                                {{name}}
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('number')" title="Insert Number">
+                                {{number}}
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('email')" title="Insert Email">
+                                {{email}}
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('company')" title="Insert Company">
+                                {{company}}
+                            </button>
+                        </div>
+                        <div class="btn-group me-2" role="group">
+                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="insertFileVariable('fileName')" title="Insert File Name">
+                                {{fileName}}
+                            </button>
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('date')" title="Insert Date">
+                                {{date}}
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('time')" title="Insert Time">
+                                {{time}}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <textarea class="form-control" id="blastFilesMessage" rows="8" 
+                              placeholder="Type your message here...">Hello {{name}},
+
+Your document *{{fileName}}* is ready for download.
+
+Use the toolbar above to format your message and add variables.
+
+Best regards,
+{{company}}</textarea>
+                    
+                    <!-- Live Preview -->
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleFilePreview()" id="filePreviewToggle">
+                            <i class="fas fa-eye me-1"></i>
+                            Show Preview
+                        </button>
+                    </div>
+                    
+                    <div id="fileMessagePreview" class="mt-2 p-3 border rounded bg-light" style="display: none;">
+                        <h6>Message Preview:</h6>
+                        <div id="filePreviewContent" class="preview-content"></div>
+                    </div>
+                </div>
+                
+                <!-- Test Buttons -->
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Test Functions:</h6>
+                        <button type="button" class="btn btn-primary me-2" onclick="testFormatting()">
+                            Test Formatting
+                        </button>
+                        <button type="button" class="btn btn-success me-2" onclick="testVariables()">
+                            Test Variables
+                        </button>
+                        <button type="button" class="btn btn-info me-2" onclick="toggleFilePreview()">
+                            Toggle Preview
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Rich Text Functions
+        function formatFileText(format) {
+            const textarea = document.getElementById('blastFilesMessage');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            
+            if (selectedText) {
+                let formattedText = '';
+                
+                switch (format) {
+                    case 'bold':
+                        formattedText = `*${selectedText}*`;
+                        break;
+                    case 'italic':
+                        formattedText = `_${selectedText}_`;
+                        break;
+                    case 'strikethrough':
+                        formattedText = `~${selectedText}~`;
+                        break;
+                    case 'monospace':
+                        formattedText = `\`\`\`${selectedText}\`\`\``;
+                        break;
+                    default:
+                        formattedText = selectedText;
+                }
+                
+                textarea.value = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
+                textarea.focus();
+                textarea.setSelectionRange(start, start + formattedText.length);
+                
+                updateFilePreview();
+            } else {
+                alert('Please select text to format');
+            }
+        }
+
+        function insertFileVariable(variable) {
+            const textarea = document.getElementById('blastFilesMessage');
+            const cursorPos = textarea.selectionStart;
+            const textBefore = textarea.value.substring(0, cursorPos);
+            const textAfter = textarea.value.substring(cursorPos);
+            
+            const variableText = `{{${variable}}}`;
+            
+            textarea.value = textBefore + variableText + textAfter;
+            textarea.focus();
+            textarea.setSelectionRange(cursorPos + variableText.length, cursorPos + variableText.length);
+            
+            updateFilePreview();
+        }
+
+        function toggleFilePreview() {
+            const preview = document.getElementById('fileMessagePreview');
+            const toggle = document.getElementById('filePreviewToggle');
+            
+            if (preview.style.display === 'none') {
+                preview.style.display = 'block';
+                toggle.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide Preview';
+                updateFilePreview();
+            } else {
+                preview.style.display = 'none';
+                toggle.innerHTML = '<i class="fas fa-eye me-1"></i>Show Preview';
+            }
+        }
+
+        function updateFilePreview() {
+            const textarea = document.getElementById('blastFilesMessage');
+            const previewContent = document.getElementById('filePreviewContent');
+            
+            if (!previewContent || !textarea) return;
+            
+            let message = textarea.value;
+            
+            // Replace formatting
+            message = message
+                .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')
+                .replace(/_([^_]+)_/g, '<em>$1</em>')
+                .replace(/~([^~]+)~/g, '<del>$1</del>')
+                .replace(/```([^`]+)```/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+            
+            // Replace variables with sample data
+            const sampleData = {
+                name: 'John Doe',
+                number: '628123456789',
+                email: 'john@example.com',
+                company: 'ABC Corp',
+                fileName: 'document.pdf',
+                date: new Date().toLocaleDateString('id-ID'),
+                time: new Date().toLocaleTimeString('id-ID')
+            };
+            
+            Object.keys(sampleData).forEach(key => {
+                const regex = new RegExp(`{{${key}}}`, 'g');
+                message = message.replace(regex, `<span class="badge bg-info">${sampleData[key]}</span>`);
+            });
+            
+            previewContent.innerHTML = message || '<em class="text-muted">Type a message to see preview...</em>';
+        }
+
+        // Test functions
+        function testFormatting() {
+            const textarea = document.getElementById('blastFilesMessage');
+            textarea.value = 'This is *bold*, this is _italic_, this is ~strikethrough~, and this is ```monospace``` text.';
+            updateFilePreview();
+            alert('Formatting test applied! Check the preview.');
+        }
+
+        function testVariables() {
+            const textarea = document.getElementById('blastFilesMessage');
+            textarea.value = 'Hello {{name}}, your file {{fileName}} is ready! Contact: {{number}}, Email: {{email}}, Company: {{company}}, Date: {{date}}, Time: {{time}}';
+            updateFilePreview();
+            alert('Variables test applied! Check the preview.');
+        }
+
+        // Auto-update preview when typing
+        document.addEventListener('DOMContentLoaded', () => {
+            const textarea = document.getElementById('blastFilesMessage');
+            if (textarea) {
+                textarea.addEventListener('input', () => {
+                    if (document.getElementById('fileMessagePreview').style.display !== 'none') {
+                        updateFilePreview();
+                    }
+                });
+            }
+            
+            // Auto-show preview
+            setTimeout(() => {
+                toggleFilePreview();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ class WABlastApp {
     }
 
     init() {
+        this.initializeNotifications();
         this.setupSocketListeners();
         this.setupEventListeners();
         this.setupFormHandlers();
@@ -36,6 +37,13 @@ class WABlastApp {
         // Blast progress updates
         this.socket.on('blast-progress', (progress) => {
             this.updateBlastProgress(progress);
+            this.showBlastProgress(progress);
+        });
+
+        // Blast completion
+        this.socket.on('blast-complete', (results) => {
+            this.showBlastComplete(results);
+            this.hideBlastProgress();
         });
 
         // Connection events
@@ -52,6 +60,10 @@ class WABlastApp {
         // Connection buttons
         document.getElementById('connectBtn').addEventListener('click', () => {
             this.connectWhatsApp();
+        });
+
+        document.getElementById('newConnectionBtn').addEventListener('click', () => {
+            this.forceNewConnection();
         });
 
         document.getElementById('disconnectBtn').addEventListener('click', () => {
@@ -140,10 +152,22 @@ class WABlastApp {
         this.showLoading('Disconnecting...');
     }
 
+    forceNewConnection() {
+        const message = this.isConnected
+            ? 'This will disconnect current WhatsApp and generate a new QR code for a different account. Continue?'
+            : 'This will clear any existing session and generate a fresh QR code. Continue?';
+
+        if (confirm(message)) {
+            this.socket.emit('force-new-connection');
+            this.showLoading('Clearing session and generating new QR code...');
+        }
+    }
+
     updateConnectionStatus(status) {
         this.isConnected = status.isConnected;
         const statusElement = document.getElementById('connectionStatus');
         const connectBtn = document.getElementById('connectBtn');
+        const newConnectionBtn = document.getElementById('newConnectionBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const qrCodeImage = document.getElementById('qrCodeImage');
         const qrPlaceholder = document.getElementById('qrPlaceholder');
@@ -153,35 +177,346 @@ class WABlastApp {
         if (status.isConnected) {
             statusElement.innerHTML = '<i class="fas fa-circle text-success me-1"></i>Connected';
             connectBtn.style.display = 'none';
+            newConnectionBtn.style.display = 'block';
             disconnectBtn.style.display = 'block';
             qrCodeImage.style.display = 'none';
             qrPlaceholder.style.display = 'block';
             qrPlaceholder.innerHTML = '<i class="fas fa-check-circle fa-3x text-success"></i><p class="mt-2 text-success">WhatsApp Connected!</p>';
-            messageElement.innerHTML = '<div class="alert alert-success">WhatsApp connected successfully!</div>';
+            messageElement.innerHTML = '<div class="alert alert-success">WhatsApp connected successfully! <br><small class="text-muted">Use "New QR Code" to connect a different WhatsApp account.</small></div>';
         } else if (status.status === 'connecting') {
             statusElement.innerHTML = '<i class="fas fa-circle text-warning me-1"></i>Connecting...';
             connectBtn.style.display = 'none';
+            newConnectionBtn.style.display = 'none';
             disconnectBtn.style.display = 'block';
             messageElement.innerHTML = '<div class="alert alert-info">Connecting to WhatsApp...</div>';
         } else if (status.status === 'qr-ready' && status.qrCode) {
             statusElement.innerHTML = '<i class="fas fa-circle text-warning me-1"></i>Scan QR Code';
             connectBtn.style.display = 'none';
+            newConnectionBtn.style.display = 'block';
             disconnectBtn.style.display = 'block';
             qrPlaceholder.style.display = 'none';
             qrCodeImage.src = status.qrCode;
             qrCodeImage.style.display = 'block';
-            messageElement.innerHTML = '<div class="alert alert-warning">Please scan the QR code with your WhatsApp mobile app</div>';
+            messageElement.innerHTML = '<div class="alert alert-warning">Please scan the QR code with your WhatsApp mobile app <br><small class="text-muted">Click "New QR Code" to generate a fresh QR code.</small></div>';
         } else {
             statusElement.innerHTML = '<i class="fas fa-circle text-danger me-1"></i>Disconnected';
             connectBtn.style.display = 'block';
+            newConnectionBtn.style.display = 'block'; // Always show when disconnected
             disconnectBtn.style.display = 'none';
             qrCodeImage.style.display = 'none';
             qrPlaceholder.style.display = 'block';
             qrPlaceholder.innerHTML = '<i class="fas fa-qrcode fa-3x text-muted"></i><p class="mt-2 text-muted">Click connect to generate QR code</p>';
-            messageElement.innerHTML = '';
+            messageElement.innerHTML = '<div class="alert alert-info">Choose: <strong>Connect WhatsApp</strong> (use existing session) or <strong>New QR Code</strong> (fresh session for different WhatsApp)</div>';
         }
 
         this.hideLoading();
+    }
+
+    // Initialize notification system
+    initializeNotifications() {
+        // Configure SweetAlert2 defaults
+        if (typeof Swal !== 'undefined') {
+            this.Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
+        }
+    }
+
+    // Notification methods
+    showSuccessNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'success',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`✅ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    showErrorNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'error',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`❌ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    showWarningNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'warning',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`⚠️ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    showInfoNotification(title, message = '') {
+        if (this.Toast) {
+            this.Toast.fire({
+                icon: 'info',
+                title: title,
+                text: message
+            });
+        } else {
+            alert(`ℹ️ ${title}${message ? ': ' + message : ''}`);
+        }
+    }
+
+    // Detailed notification for message sending
+    showMessageResult(success, data) {
+        if (success) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Message Sent Successfully!',
+                    html: `
+                        <div class="text-start">
+                            <p><strong>To:</strong> ${data.number || 'Unknown'}</p>
+                            <p><strong>Type:</strong> ${data.type || 'text'}</p>
+                            <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                            ${data.fileName ? `<p><strong>File:</strong> ${data.fileName}</p>` : ''}
+                        </div>
+                    `,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#28a745'
+                });
+            } else {
+                this.showSuccessNotification('Message Sent!', `To: ${data.number}`);
+            }
+        } else {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Send Message',
+                    html: `
+                        <div class="text-start">
+                            <p><strong>Error:</strong> ${data.error || 'Unknown error'}</p>
+                            <p><strong>To:</strong> ${data.number || 'Unknown'}</p>
+                            <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                        </div>
+                    `,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545'
+                });
+            } else {
+                this.showErrorNotification('Send Failed!', data.error || 'Unknown error');
+            }
+        }
+    }
+
+    // Blast progress notification
+    showBlastProgress(progress) {
+        if (typeof Swal !== 'undefined') {
+            const percentage = progress.percentage || Math.round(((progress.sent + progress.failed) / progress.total) * 100);
+
+            // Only show progress modal if not already showing
+            if (!this.progressModalShowing) {
+                this.progressModalShowing = true;
+
+                Swal.fire({
+                    title: 'Sending Blast Messages...',
+                    html: `
+                        <div class="text-center">
+                            <div class="progress mb-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     style="width: ${percentage}%"></div>
+                            </div>
+                            <p><strong>Progress:</strong> ${progress.sent + progress.failed}/${progress.total} (${percentage}%)</p>
+                            <p><strong>Successful:</strong> <span class="text-success">${progress.sent}</span></p>
+                            <p><strong>Failed:</strong> <span class="text-danger">${progress.failed}</span></p>
+                            <p><strong>Current:</strong> ${progress.current || progress.sent + progress.failed + 1}</p>
+                        </div>
+                    `,
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+            } else {
+                // Update existing modal content
+                const progressBar = document.querySelector('.progress-bar');
+                const progressText = document.querySelector('.swal2-html-container');
+
+                if (progressBar) {
+                    progressBar.style.width = `${percentage}%`;
+                }
+
+                if (progressText) {
+                    progressText.innerHTML = `
+                        <div class="text-center">
+                            <div class="progress mb-3">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     style="width: ${percentage}%"></div>
+                            </div>
+                            <p><strong>Progress:</strong> ${progress.sent + progress.failed}/${progress.total} (${percentage}%)</p>
+                            <p><strong>Successful:</strong> <span class="text-success">${progress.sent}</span></p>
+                            <p><strong>Failed:</strong> <span class="text-danger">${progress.failed}</span></p>
+                            <p><strong>Current:</strong> ${progress.current || progress.sent + progress.failed + 1}</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+    }
+
+    // Blast completion notification
+    showBlastComplete(results) {
+        // Reset progress modal flag
+        this.progressModalShowing = false;
+
+        if (typeof Swal !== 'undefined') {
+            const successRate = results.successRate || Math.round((results.successful / results.total) * 100);
+
+            Swal.fire({
+                icon: results.successful === results.total ? 'success' : 'warning',
+                title: 'Blast Complete!',
+                html: `
+                    <div class="text-start">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Total:</strong> ${results.total}</p>
+                                <p><strong>Successful:</strong> <span class="text-success">${results.successful}</span></p>
+                                <p><strong>Failed:</strong> <span class="text-danger">${results.failed}</span></p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Success Rate:</strong> ${successRate}%</p>
+                                <p><strong>Duration:</strong> ${results.duration || 'N/A'}</p>
+                                <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                                ${results.filesSent ? `<p><strong>Files Sent:</strong> ${results.filesSent}</p>` : ''}
+                                ${results.unmatched ? `<p><strong>Unmatched:</strong> ${results.unmatched}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                confirmButtonColor: results.successful === results.total ? '#28a745' : '#ffc107'
+            });
+        } else {
+            this.showInfoNotification('Blast Complete!', `${results.successful}/${results.total} sent successfully`);
+        }
+    }
+
+    // Show blast progress modal (non-socket version)
+    showBlastProgressModal(totalContacts) {
+        if (typeof Swal !== 'undefined') {
+            this.blastProgressModal = Swal.fire({
+                title: 'Sending Blast Messages...',
+                html: `
+                    <div class="text-center">
+                        <div class="progress mb-3">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 id="blastProgressBar" style="width: 0%"></div>
+                        </div>
+                        <p id="blastProgressText"><strong>Progress:</strong> 0/${totalContacts} (0%)</p>
+                        <p id="blastSuccessText"><strong>Successful:</strong> <span class="text-success">0</span></p>
+                        <p id="blastFailedText"><strong>Failed:</strong> <span class="text-danger">0</span></p>
+                        <p id="blastCurrentText"><strong>Current:</strong> Preparing...</p>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+        }
+    }
+
+    // Update blast progress modal
+    updateBlastProgressModal(sent, failed, total, current) {
+        if (this.blastProgressModal && typeof Swal !== 'undefined') {
+            const percentage = Math.round(((sent + failed) / total) * 100);
+
+            // Update progress bar
+            const progressBar = document.getElementById('blastProgressBar');
+            if (progressBar) {
+                progressBar.style.width = `${percentage}%`;
+            }
+
+            // Update text elements
+            const progressText = document.getElementById('blastProgressText');
+            if (progressText) {
+                progressText.innerHTML = `<strong>Progress:</strong> ${sent + failed}/${total} (${percentage}%)`;
+            }
+
+            const successText = document.getElementById('blastSuccessText');
+            if (successText) {
+                successText.innerHTML = `<strong>Successful:</strong> <span class="text-success">${sent}</span>`;
+            }
+
+            const failedText = document.getElementById('blastFailedText');
+            if (failedText) {
+                failedText.innerHTML = `<strong>Failed:</strong> <span class="text-danger">${failed}</span>`;
+            }
+
+            const currentText = document.getElementById('blastCurrentText');
+            if (currentText) {
+                currentText.innerHTML = `<strong>Current:</strong> Contact ${current}`;
+            }
+        }
+    }
+
+    // Close blast progress modal
+    closeBlastProgressModal() {
+        if (this.blastProgressModal && typeof Swal !== 'undefined') {
+            Swal.close();
+            this.blastProgressModal = null;
+        }
+
+        // Clear simulation interval
+        if (this.blastSimulationInterval) {
+            clearInterval(this.blastSimulationInterval);
+            this.blastSimulationInterval = null;
+        }
+    }
+
+    // Simulate blast progress
+    simulateBlastProgress(totalContacts, delay) {
+        let currentContact = 0;
+        let sent = 0;
+        let failed = 0;
+
+        // Update progress every delay/2 milliseconds or minimum 500ms
+        const updateInterval = Math.max(delay / 2, 500);
+
+        this.blastSimulationInterval = setInterval(() => {
+            if (currentContact < totalContacts) {
+                currentContact++;
+
+                // Simulate success/failure (90% success rate)
+                if (Math.random() > 0.1) {
+                    sent++;
+                } else {
+                    failed++;
+                }
+
+                // Update progress modal
+                this.updateBlastProgressModal(sent, failed, totalContacts, currentContact);
+
+            } else {
+                // Clear interval when done
+                clearInterval(this.blastSimulationInterval);
+                this.blastSimulationInterval = null;
+            }
+        }, updateInterval);
     }
 
     toggleFileUpload(type, messageType) {
@@ -195,7 +530,7 @@ class WABlastApp {
 
     async sendSingleMessage() {
         if (!this.isConnected) {
-            this.showAlert('Please connect to WhatsApp first', 'danger');
+            this.showErrorNotification('WhatsApp Not Connected', 'Please connect to WhatsApp first');
             return;
         }
 
@@ -263,7 +598,14 @@ class WABlastApp {
             const result = await response.json();
 
             if (result.success) {
-                this.showAlert('Message sent successfully!', 'success');
+                // Show detailed success notification
+                this.showMessageResult(true, {
+                    number: number,
+                    type: type,
+                    fileName: fileName
+                });
+
+                // Reset form
                 document.getElementById('singleMessageForm').reset();
                 this.toggleFileUpload('single', 'text');
             } else {
@@ -272,7 +614,12 @@ class WABlastApp {
 
         } catch (error) {
             console.error('Error sending message:', error);
-            this.showAlert(error.message, 'danger');
+
+            // Show detailed error notification
+            this.showMessageResult(false, {
+                number: number,
+                error: error.message
+            });
         } finally {
             this.hideLoading();
         }
@@ -282,7 +629,7 @@ class WABlastApp {
         const fileInput = document.getElementById('contactFile');
         
         if (!fileInput.files[0]) {
-            this.showAlert('Please select a file to import', 'danger');
+            this.showWarningNotification('No File Selected', 'Please select a file to import');
             return;
         }
 
@@ -305,14 +652,33 @@ class WABlastApp {
                 this.updateContactSummary(result.summary);
                 this.displayContacts(result.contacts);
 
-                let message = `Successfully imported ${result.summary.valid} contacts`;
-                if (result.summary.added !== undefined) {
-                    message += ` (${result.summary.added} new, ${result.summary.duplicates} duplicates)`;
+                // Show detailed import success notification
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Contacts Imported Successfully!',
+                        html: `
+                            <div class="text-start">
+                                <p><strong>Valid Contacts:</strong> ${result.summary.valid}</p>
+                                ${result.summary.added !== undefined ? `<p><strong>New:</strong> ${result.summary.added}</p>` : ''}
+                                ${result.summary.duplicates !== undefined ? `<p><strong>Duplicates:</strong> ${result.summary.duplicates}</p>` : ''}
+                                ${result.summary.invalid > 0 ? `<p><strong>Invalid:</strong> <span class="text-warning">${result.summary.invalid}</span></p>` : ''}
+                                <p><strong>File:</strong> ${fileInput.files[0].name}</p>
+                            </div>
+                        `,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#28a745'
+                    });
+                } else {
+                    let message = `Successfully imported ${result.summary.valid} contacts`;
+                    if (result.summary.added !== undefined) {
+                        message += ` (${result.summary.added} new, ${result.summary.duplicates} duplicates)`;
+                    }
+                    this.showSuccessNotification('Import Complete', message);
                 }
-                this.showAlert(message, 'success');
 
                 if (result.invalidContacts && result.invalidContacts.length > 0) {
-                    this.showAlert(`${result.summary.invalid} contacts were invalid and skipped`, 'warning');
+                    this.showWarningNotification('Some Contacts Skipped', `${result.summary.invalid} contacts were invalid and skipped`);
                 }
 
                 // Reload stored contacts to get updated data
@@ -326,7 +692,7 @@ class WABlastApp {
 
         } catch (error) {
             console.error('Error importing contacts:', error);
-            this.showAlert(error.message, 'danger');
+            this.showErrorNotification('Import Failed', error.message);
         } finally {
             this.hideLoading();
         }
@@ -949,7 +1315,7 @@ class WABlastApp {
 
     async sendBlastMessage() {
         if (!this.isConnected) {
-            this.showAlert('Please connect to WhatsApp first', 'danger');
+            this.showErrorNotification('WhatsApp Not Connected', 'Please connect to WhatsApp first');
             return;
         }
 
@@ -959,24 +1325,60 @@ class WABlastApp {
         const selectedContacts = this.getSelectedContacts();
 
         if (!message) {
-            this.showAlert('Please enter a message', 'danger');
+            this.showWarningNotification('Message Required', 'Please enter a message');
             return;
         }
 
         if (selectedContacts.length === 0) {
-            this.showAlert('Please select at least one contact', 'danger');
+            this.showWarningNotification('No Contacts Selected', 'Please select at least one contact');
             return;
         }
 
-        // Show confirmation
-        if (!confirm(`Are you sure you want to send blast message to ${selectedContacts.length} selected contacts?`)) {
-            return;
+        // Show confirmation with SweetAlert
+        if (typeof Swal !== 'undefined') {
+            const result = await Swal.fire({
+                title: 'Confirm Blast Message',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Recipients:</strong> ${selectedContacts.length} contacts</p>
+                        <p><strong>Message Type:</strong> ${type}</p>
+                        <p><strong>Delay:</strong> ${delay}ms between messages</p>
+                        <hr>
+                        <p><strong>Message Preview:</strong></p>
+                        <div class="p-2 bg-light rounded" style="max-height: 150px; overflow-y: auto;">
+                            ${message.substring(0, 200)}${message.length > 200 ? '...' : ''}
+                        </div>
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Send Blast',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d'
+            });
+
+            if (!result.isConfirmed) {
+                return;
+            }
+        } else {
+            if (!confirm(`Are you sure you want to send blast message to ${selectedContacts.length} selected contacts?`)) {
+                return;
+            }
         }
 
         // Show progress
-        this.showBlastProgress();
+        // Show start notification
+        this.showInfoNotification('Blast Started', `Sending messages to ${selectedContacts.length} contacts...`);
+
+        // Show initial blast progress modal
+        this.showBlastProgressModal(selectedContacts.length);
+        this.blastStartTime = Date.now(); // Track start time
 
         try {
+            // Start progress simulation
+            this.simulateBlastProgress(selectedContacts.length, delay);
+
             const response = await fetch('/api/messages/blast', {
                 method: 'POST',
                 headers: {
@@ -991,8 +1393,17 @@ class WABlastApp {
 
             const result = await response.json();
 
+            // Close progress modal
+            this.closeBlastProgressModal();
+
             if (result.success) {
-                this.showAlert(`Blast completed! Sent: ${result.summary.sent}, Failed: ${result.summary.failed}`, 'success');
+                // Show detailed blast completion notification
+                this.showBlastComplete({
+                    total: result.summary.total || selectedContacts.length,
+                    successful: result.summary.sent,
+                    failed: result.summary.failed,
+                    duration: this.calculateBlastDuration()
+                });
                 this.hideBlastProgress();
             } else {
                 throw new Error(result.error || 'Failed to send blast');
@@ -1000,7 +1411,11 @@ class WABlastApp {
 
         } catch (error) {
             console.error('Error sending blast:', error);
-            this.showAlert(error.message, 'danger');
+
+            // Close progress modal
+            this.closeBlastProgressModal();
+
+            this.showErrorNotification('Blast Failed', error.message);
             this.hideBlastProgress();
         }
     }
@@ -1032,6 +1447,18 @@ class WABlastApp {
             document.getElementById('currentContact').textContent =
                 `Processing contact ${progress.current} of ${progress.total}`;
         }
+
+        // Note: Blast completion is now handled by socket event 'blast-complete'
+    }
+
+    calculateBlastDuration() {
+        if (this.blastStartTime) {
+            const duration = Date.now() - this.blastStartTime;
+            const minutes = Math.floor(duration / 60000);
+            const seconds = Math.floor((duration % 60000) / 1000);
+            return `${minutes}m ${seconds}s`;
+        }
+        return 'N/A';
     }
 
     showLoading(text = 'Loading...') {
