@@ -128,15 +128,31 @@ class WhatsAppService {
 
             let result;
             if (options.type === 'image' && options.media) {
+                // Validate image file
+                if (!options.media || options.media.length === 0) {
+                    throw new Error('Image file is empty or invalid');
+                }
+
                 result = await this.sock.sendMessage(jid, {
                     image: options.media,
                     caption: message
                 });
             } else if (options.type === 'document' && options.media) {
+                // Validate document file
+                if (!options.media || options.media.length === 0) {
+                    throw new Error('Document file is empty or invalid');
+                }
+
+                // Ensure minimum file size to avoid WhatsApp "empty file" error
+                if (options.media.length < 10) {
+                    throw new Error('Document file is too small (minimum 10 bytes required)');
+                }
+
                 result = await this.sock.sendMessage(jid, {
                     document: options.media,
                     fileName: options.fileName || 'document',
-                    caption: message
+                    caption: message,
+                    mimetype: this.getMimeType(options.fileName || 'document')
                 });
             } else {
                 result = await this.sock.sendMessage(jid, { text: message });
@@ -152,6 +168,27 @@ class WhatsAppService {
 
     isReady() {
         return this.isConnected && this.sock;
+    }
+
+    getMimeType(fileName) {
+        const ext = fileName.toLowerCase().split('.').pop();
+        const mimeTypes = {
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'txt': 'text/plain',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'bmp': 'image/bmp',
+            'webp': 'image/webp'
+        };
+        return mimeTypes[ext] || 'application/octet-stream';
     }
 }
 

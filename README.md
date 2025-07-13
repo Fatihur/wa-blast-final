@@ -21,6 +21,7 @@ A powerful WhatsApp blast messaging application built with Baileys, Express.js, 
 ✅ **Auto Phone Formatting** - Smart phone number detection and formatting (08xx → 628xx)
 ✅ **Persistent Storage** - Contacts saved permanently, auto-load on restart
 ✅ **Dynamic Variables** - Variables auto-generated from Excel headers ({{position}}, {{department}}, etc.)
+✅ **File Matching** - Send different files to each contact based on fileName column in Excel
 
 ## Installation
 
@@ -104,7 +105,22 @@ A powerful WhatsApp blast messaging application built with Baileys, Express.js, 
 6. Preview message before sending
 7. Click "Send Blast"
 
-### 5. View Message Logs
+### 5. File Matching (Send Different Files per Contact)
+
+1. Click "File Matching" button in navbar
+2. Upload documents to Documents folder
+3. Import Excel with `fileName` column
+4. Preview file matching results
+5. Send blast with different files per contact
+
+**Excel Template for File Matching:**
+```
+name        | number      | email           | fileName
+John Doe    | 08123456789 | john@email.com  | john_certificate.pdf
+Jane Smith  | 08234567890 | jane@email.com  | jane_report.docx
+```
+
+### 6. View Message Logs
 
 1. Click "Logs" button in navbar
 2. View statistics and message history
@@ -126,6 +142,8 @@ Use these variables in your messages for personalization:
 - `{{day}}` - Day of week
 - `{{month}}` - Month name
 - `{{year}}` - Current year
+- `{{fileName}}` - File name (for file matching)
+- **Custom variables** from Excel headers (e.g., {{position}}, {{department}})
 
 **Example:**
 ```
@@ -270,6 +288,19 @@ node create-test-image.js
 - Verify file is not corrupted
 
 For detailed troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+## 📱 Available Pages
+
+- **Main App**: http://localhost:3000 - Main WhatsApp blast interface
+- **File Matching**: http://localhost:3000/file-matching.html - Send different files per contact
+- **Logs**: http://localhost:3000/logs.html - Message logs and statistics
+- **Test Upload**: http://localhost:3000/test-upload.html - File upload testing
+
+## 📚 Documentation
+
+- [FILE_MATCHING_GUIDE.md](FILE_MATCHING_GUIDE.md) - Complete guide for file matching feature
+- [STORAGE_AND_VARIABLES.md](STORAGE_AND_VARIABLES.md) - Storage and dynamic variables guide
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Troubleshooting guide
 
 ## License
 

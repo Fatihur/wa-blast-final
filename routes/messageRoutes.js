@@ -4,6 +4,7 @@ const whatsappService = require('../services/whatsappService');
 const messageUtils = require('../utils/messageUtils');
 const logger = require('../utils/logger');
 const logRoutes = require('./logRoutes');
+const fileMatchingService = require('../services/fileMatchingService');
 const fs = require('fs-extra');
 const path = require('path');
 
@@ -265,6 +266,184 @@ router.post('/blast', async (req, res) => {
 
     } catch (error) {
         await logger.error('Error in blast campaign', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Send blast messages with file matching
+router.post('/blast-with-files', async (req, res) => {
+    const startTime = Date.now();
+
+    try {
+        const { contacts, message, variables = {}, delay = 1000, retryAttempts = 2 } = req.body;
+
+        await logger.blast(`Starting file matching blast campaign`, {
+            totalContacts: contacts?.length || 0,
+            delay,
+            retryAttempts
+        });
+
+        if (!whatsappService.isReady()) {
+            return res.status(400).json({ error: 'WhatsApp not connected' });
+        }
+
+        if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+            return res.status(400).json({ error: 'Contacts array is required' });
+        }
+
+        if (!message) {
+            return res.status(400).json({ error: 'Message is required' });
+        }
+
+        // Match contacts with files
+        const matchingResult = await fileMatchingService.matchContactsWithFiles(contacts);
+
+        if (matchingResult.matched.length === 0) {
+            return res.status(400).json({
+                error: 'No contacts could be matched with files',
+                details: matchingResult
+            });
+        }
+
+        const results = [];
+        const total = matchingResult.matched.length;
+        let sent = 0;
+        let failed = 0;
+
+        for (let i = 0; i < matchingResult.matched.length; i++) {
+            const contact = matchingResult.matched[i];
+            let success = false;
+            let lastError = null;
+
+            // Retry mechanism
+            for (let attempt = 1; attempt <= retryAttempts && !success; attempt++) {
+                try {
+                    // Replace variables in message
+                    let personalizedMessage = messageUtils.replaceVariables(message, contact, variables);
+
+                    // Format rich text
+                    personalizedMessage = messageUtils.formatRichText(personalizedMessage);
+
+                    // Prepare file options
+                    const options = {
+                        type: contact.matchedFile.type,
+                        media: await fs.readFile(contact.matchedFile.fullPath),
+                        fileName: contact.matchedFile.fileName
+                    };
+
+                    const result = await whatsappService.sendMessage(contact.number, personalizedMessage, options);
+
+                    results.push({
+                        number: contact.number,
+                        name: contact.name || '',
+                        fileName: contact.matchedFile.fileName,
+                        status: 'sent',
+                        messageId: result.key.id,
+                        attempts: attempt
+                    });
+
+                    sent++;
+                    success = true;
+
+                    await logger.blast(`File message sent successfully`, {
+                        contact: contact.number,
+                        fileName: contact.matchedFile.fileName,
+                        attempt,
+                        messageId: result.key.id
+                    });
+
+                    // Log successful blast message
+                    logRoutes.addLog({
+                        number: contact.number,
+                        message: personalizedMessage.substring(0, 100) + (personalizedMessage.length > 100 ? '...' : ''),
+                        type: contact.matchedFile.type,
+                        status: 'success',
+                        messageId: result.key.id,
+                        attempts: attempt,
+                        fileName: contact.matchedFile.fileName,
+                        contactName: contact.name || null
+                    });
+
+                } catch (error) {
+                    lastError = error;
+                    await logger.error(`Attempt ${attempt} failed for ${contact.number}`, error);
+
+                    if (attempt < retryAttempts) {
+                        // Wait before retry
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            }
+
+            if (!success) {
+                results.push({
+                    number: contact.number,
+                    name: contact.name || '',
+                    fileName: contact.matchedFile?.fileName || 'unknown',
+                    status: 'failed',
+                    error: lastError?.message || 'Unknown error',
+                    attempts: retryAttempts
+                });
+                failed++;
+
+                await logger.error(`All attempts failed for ${contact.number}`, lastError);
+
+                // Log failed blast message
+                logRoutes.addLog({
+                    number: contact.number,
+                    message: personalizedMessage?.substring(0, 100) + (personalizedMessage?.length > 100 ? '...' : ''),
+                    type: contact.matchedFile?.type || 'document',
+                    status: 'failed',
+                    error: lastError?.message || 'Unknown error',
+                    attempts: retryAttempts,
+                    fileName: contact.matchedFile?.fileName || 'unknown',
+                    contactName: contact.name || null
+                });
+            }
+
+            // Emit progress update
+            req.app.get('io')?.emit('blast-progress', {
+                total,
+                sent,
+                failed,
+                current: i + 1,
+                percentage: Math.round(((i + 1) / total) * 100)
+            });
+
+            // Add delay between messages
+            if (i < matchingResult.matched.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        const duration = Date.now() - startTime;
+
+        await logger.blast(`File matching blast campaign completed`, {
+            total,
+            sent,
+            failed,
+            unmatched: matchingResult.unmatched.length,
+            duration: `${Math.round(duration / 1000)}s`,
+            successRate: `${Math.round((sent / total) * 100)}%`
+        });
+
+        res.json({
+            success: true,
+            summary: {
+                total,
+                sent,
+                failed,
+                unmatched: matchingResult.unmatched.length,
+                duration,
+                successRate: Math.round((sent / total) * 100)
+            },
+            results,
+            unmatchedContacts: matchingResult.unmatched,
+            fileMatchingStats: matchingResult.statistics
+        });
+
+    } catch (error) {
+        await logger.error('Error in file matching blast campaign', error);
         res.status(500).json({ error: error.message });
     }
 });

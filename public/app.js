@@ -15,6 +15,16 @@ class WABlastApp {
         this.setupFormHandlers();
         this.checkConnectionStatus();
         this.loadStoredContacts();
+
+        // Initialize empty summary if no contacts
+        if (this.contacts.length === 0) {
+            this.updateContactSummary({
+                total: 0,
+                valid: 0,
+                invalid: 0,
+                selected: 0
+            });
+        }
     }
 
     setupSocketListeners() {
@@ -104,10 +114,16 @@ class WABlastApp {
                 this.contacts = data.contacts;
                 this.headers = data.headers;
 
-                if (this.contacts.length > 0) {
-                    this.updateContactSummary(data.statistics);
-                    this.displayContacts(this.contacts);
-                }
+                // Calculate proper summary
+                const summary = {
+                    total: this.contacts.length,
+                    valid: this.contacts.filter(c => c.number && c.number.trim()).length,
+                    invalid: this.contacts.filter(c => !c.number || !c.number.trim()).length,
+                    selected: this.contacts.filter(c => c.selected !== false).length
+                };
+
+                this.updateContactSummary(summary);
+                this.displayContacts(this.contacts);
             }
         } catch (error) {
             console.error('Error loading stored contacts:', error);
@@ -318,24 +334,55 @@ class WABlastApp {
 
     updateContactSummary(summary) {
         const summaryElement = document.getElementById('contactSummary');
+        if (!summaryElement) return;
+
+        // Ensure summary object exists and has default values
+        const safeSummary = {
+            total: 0,
+            valid: 0,
+            invalid: 0,
+            selected: 0,
+            ...summary
+        };
+
+        // Calculate values based on available data
+        const total = safeSummary.total || safeSummary.totalContacts || this.contacts.length || 0;
+        const valid = safeSummary.valid || safeSummary.matched || this.contacts.filter(c => c.number && c.number.trim()).length || 0;
+        const invalid = safeSummary.invalid || safeSummary.unmatched || (total - valid) || 0;
+        const selected = safeSummary.selected || this.contacts.filter(c => c.selected !== false).length || 0;
+
         summaryElement.innerHTML = `
             <div class="row">
-                <div class="col-4">
-                    <div class="summary-card">
-                        <div class="summary-number">${summary.total}</div>
-                        <div class="summary-label">Total</div>
+                <div class="col-3">
+                    <div class="card bg-primary text-white mb-3">
+                        <div class="card-body text-center">
+                            <h3 class="mb-1">${total}</h3>
+                            <p class="mb-0">Total</p>
+                        </div>
                     </div>
                 </div>
-                <div class="col-4">
-                    <div class="summary-card">
-                        <div class="summary-number">${summary.valid}</div>
-                        <div class="summary-label">Valid</div>
+                <div class="col-3">
+                    <div class="card bg-success text-white mb-3">
+                        <div class="card-body text-center">
+                            <h3 class="mb-1">${valid}</h3>
+                            <p class="mb-0">Valid</p>
+                        </div>
                     </div>
                 </div>
-                <div class="col-4">
-                    <div class="summary-card">
-                        <div class="summary-number">${summary.invalid}</div>
-                        <div class="summary-label">Invalid</div>
+                <div class="col-3">
+                    <div class="card bg-warning text-white mb-3">
+                        <div class="card-body text-center">
+                            <h3 class="mb-1">${invalid}</h3>
+                            <p class="mb-0">Invalid</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="card bg-info text-white mb-3">
+                        <div class="card-body text-center">
+                            <h3 class="mb-1">${selected}</h3>
+                            <p class="mb-0">Selected</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -481,6 +528,16 @@ class WABlastApp {
         if (countElement) {
             countElement.textContent = selectedCount;
         }
+
+        // Update summary with current data
+        const summary = {
+            total: this.contacts.length,
+            valid: this.contacts.filter(c => c.number && c.number.trim()).length,
+            invalid: this.contacts.filter(c => !c.number || !c.number.trim()).length,
+            selected: selectedCount
+        };
+
+        this.updateContactSummary(summary);
     }
 
     getSelectedContacts() {

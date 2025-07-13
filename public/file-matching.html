@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Matching - WA Blast</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fab fa-whatsapp me-2"></i>
+                WA Blast - File Matching
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">
+                    <i class="fas fa-home me-1"></i>
+                    Home
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Instructions -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle me-2"></i>File Matching Instructions</h5>
+                    <ol class="mb-0">
+                        <li>Upload your documents to the Documents folder</li>
+                        <li>Import contacts with a "fileName" column in your Excel file</li>
+                        <li>The system will match contact's fileName with actual files in Documents folder</li>
+                        <li>Send blast messages with different files for each contact</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="fileMatchingTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+                    <i class="fas fa-folder me-2"></i>
+                    Documents Manager
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="matching-tab" data-bs-toggle="tab" data-bs-target="#matching" type="button" role="tab">
+                    <i class="fas fa-link me-2"></i>
+                    File Matching
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="blast-files-tab" data-bs-toggle="tab" data-bs-target="#blast-files" type="button" role="tab">
+                    <i class="fas fa-paper-plane me-2"></i>
+                    Blast with Files
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="fileMatchingTabsContent">
+            <!-- Documents Manager Tab -->
+            <div class="tab-pane fade show active" id="documents" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Documents Folder Management</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Upload Section -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h6>Upload Documents</h6>
+                                <div class="mb-3">
+                                    <input type="file" class="form-control" id="documentsInput" multiple accept="*/*">
+                                    <div class="form-text">Select multiple files to upload to documents folder</div>
+                                </div>
+                                <button class="btn btn-primary" onclick="uploadDocuments()">
+                                    <i class="fas fa-upload me-2"></i>
+                                    Upload Files
+                                </button>
+                                <a href="/api/file-matching/template" class="btn btn-outline-secondary ms-2">
+                                    <i class="fas fa-download me-2"></i>
+                                    Download Template
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Statistics</h6>
+                                <div id="documentsStats">
+                                    <p class="text-muted">Loading statistics...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Documents List -->
+                        <div id="documentsList">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">Documents in Folder</h6>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="selectAllDocuments()" id="selectAllBtn">
+                                        <i class="fas fa-check-square me-1"></i>
+                                        Select All
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="bulkDeleteSelected()" id="bulkDeleteBtn" disabled>
+                                        <i class="fas fa-trash me-1"></i>
+                                        Delete Selected
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="clearAllDocuments()">
+                                        <i class="fas fa-trash-alt me-1"></i>
+                                        Clear All
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th width="40">
+                                                <input type="checkbox" class="form-check-input" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                                            </th>
+                                            <th>File Name</th>
+                                            <th>Type</th>
+                                            <th>Size</th>
+                                            <th>Last Modified</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="documentsTableBody">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                                Loading documents...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Matching Tab -->
+            <div class="tab-pane fade" id="matching" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">File Matching Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <button class="btn btn-primary" onclick="previewMatching()">
+                                    <i class="fas fa-search me-2"></i>
+                                    Preview Matching
+                                </button>
+                                <button class="btn btn-outline-secondary ms-2" onclick="refreshDocuments()">
+                                    <i class="fas fa-sync me-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <div id="matchingStats" class="text-end">
+                                    <!-- Matching statistics will be displayed here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="matchingResults">
+                            <div class="alert alert-secondary">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Click "Preview Matching" to see how contacts will be matched with files
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blast with Files Tab -->
+            <div class="tab-pane fade" id="blast-files" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">Send Blast with File Matching</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="blastFilesContent">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Please ensure contacts are imported and files are uploaded before sending blast messages.
+                            </div>
+
+                            <!-- Blast Form with Rich Text Editor -->
+                            <form id="blastFilesForm">
+                                <div class="mb-3">
+                                    <label for="blastFilesMessage" class="form-label">Message Template</label>
+
+                                    <!-- Rich Text Toolbar for File Matching -->
+                                    <div class="btn-toolbar mb-2" role="toolbar">
+                                        <div class="btn-group me-2" role="group">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('bold')" title="Bold">
+                                                <i class="fas fa-bold"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('italic')" title="Italic">
+                                                <i class="fas fa-italic"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('strikethrough')" title="Strikethrough">
+                                                <i class="fas fa-strikethrough"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('monospace')" title="Monospace">
+                                                <i class="fas fa-code"></i>
+                                            </button>
+                                        </div>
+                                        <div class="btn-group me-2" role="group" id="standardFileVariables">
+                                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('name')" title="Insert Name">
+                                                {{name}}
+                                            </button>
+                                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('number')" title="Insert Number">
+                                                {{number}}
+                                            </button>
+                                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('email')" title="Insert Email">
+                                                {{email}}
+                                            </button>
+                                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('company')" title="Insert Company">
+                                                {{company}}
+                                            </button>
+                                        </div>
+                                        <div class="btn-group me-2" role="group" id="fileSpecificVariables">
+                                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="insertFileVariable('fileName')" title="Insert File Name">
+                                                {{fileName}}
+                                            </button>
+                                        </div>
+                                        <div class="btn-group me-2" role="group" id="customFileVariables">
+                                            <!-- Dynamic variables from imported headers will be added here -->
+                                        </div>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('date')" title="Insert Date">
+                                                {{date}}
+                                            </button>
+                                            <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('time')" title="Insert Time">
+                                                {{time}}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <textarea class="form-control" id="blastFilesMessage" rows="6"
+                                              placeholder="Type your message here...&#10;&#10;Use toolbar buttons or type: *bold*, _italic_, ~strikethrough~, \`\`\`monospace\`\`\`&#10;Use variables from your imported file headers" required></textarea>
+
+                                    <!-- Live Preview -->
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleFilePreview()" id="filePreviewToggle">
+                                            <i class="fas fa-eye me-1"></i>
+                                            Show Preview
+                                        </button>
+                                    </div>
+
+                                    <div id="fileMessagePreview" class="mt-2 p-3 border rounded bg-light" style="display: none;">
+                                        <h6>Message Preview:</h6>
+                                        <div id="filePreviewContent" class="preview-content"></div>
+                                    </div>
+
+                                    <div class="form-text">
+                                        <strong>Available variables:</strong> <span id="availableFileVariables">{{name}}, {{number}}, {{email}}, {{company}}, {{fileName}}, {{date}}, {{time}}</span>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="fileBlastDelay" class="form-label">Delay Between Messages (ms)</label>
+                                        <input type="number" class="form-control" id="fileBlastDelay" value="2000" min="1000" max="10000">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="fileBlastRetry" class="form-label">Retry Attempts</label>
+                                        <input type="number" class="form-control" id="fileBlastRetry" value="2" min="1" max="5">
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Send Blast with Files
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p id="loadingText">Processing...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="file-matching.js"></script>
+</body>
+</html>

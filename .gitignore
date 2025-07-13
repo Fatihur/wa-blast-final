@@ -23,6 +23,10 @@ uploads/
 data/
 !data/.gitkeep
 
+# Documents for file matching
+documents/
+!documents/.gitkeep
+
 # Logs
 logs/
 *.log

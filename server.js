@@ -11,6 +11,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const logRoutes = require('./routes/logRoutes');
+const fileMatchingRoutes = require('./routes/fileMatchingRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +45,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/logs', logRoutes);
+app.use('/api/file-matching', fileMatchingRoutes);
 
 // Serve main page
 app.get('/', (req, res) => {
@@ -58,6 +60,11 @@ app.get('/test-upload.html', (req, res) => {
 // Serve logs page
 app.get('/logs.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'logs.html'));
+});
+
+// Serve file matching page
+app.get('/file-matching.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'file-matching.html'));
 });
 
 // Socket.io connection handling
