@@ -77,6 +77,11 @@ app.get('/test-notifications.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'test-notifications.html'));
 });
 
+// Serve anti-ban dashboard page
+app.get('/anti-ban-dashboard.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'anti-ban-dashboard.html'));
+});
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);

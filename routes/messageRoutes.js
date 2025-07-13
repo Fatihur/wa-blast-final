@@ -3,10 +3,14 @@ const router = express.Router();
 const whatsappService = require('../services/whatsappService');
 const messageUtils = require('../utils/messageUtils');
 const logger = require('../utils/logger');
+const AntiBanService = require('../services/antiBanService');
 const logRoutes = require('./logRoutes');
 const fileMatchingService = require('../services/fileMatchingService');
 const fs = require('fs-extra');
 const path = require('path');
+
+// Initialize Anti-Ban Service
+const antiBanService = new AntiBanService();
 
 // Send single message
 router.post('/send', async (req, res) => {
@@ -21,6 +25,35 @@ router.post('/send', async (req, res) => {
 
         if (!number || !message) {
             return res.status(400).json({ error: 'Number and message are required' });
+        }
+
+        // Anti-Ban: Validate message content
+        const contentValidation = antiBanService.validateMessageContent(message);
+        if (!contentValidation.isValid) {
+            await logger.warn('Message content validation failed', {
+                number,
+                issues: contentValidation.issues,
+                riskLevel: contentValidation.riskLevel
+            });
+
+            if (contentValidation.riskLevel === 'critical') {
+                return res.status(400).json({
+                    error: 'Message content too risky',
+                    issues: contentValidation.issues
+                });
+            }
+        }
+
+        // Anti-Ban: Check if message can be sent (rate limiting)
+        try {
+            await antiBanService.canSendMessage(number);
+        } catch (rateLimitError) {
+            await logger.warn('Rate limit exceeded', { number, error: rateLimitError.message });
+            return res.status(429).json({
+                error: 'Rate limit exceeded',
+                message: rateLimitError.message,
+                retryAfter: antiBanService.calculateOptimalDelay(number)
+            });
         }
 
         // Format message with rich text
@@ -62,6 +95,9 @@ router.post('/send', async (req, res) => {
 
         const result = await whatsappService.sendMessage(number, formattedMessage, options);
 
+        // Anti-Ban: Record successful message
+        antiBanService.recordMessageSent(number, true);
+
         // Log successful message
         logRoutes.addLog({
             number: number,
@@ -79,6 +115,11 @@ router.post('/send', async (req, res) => {
         });
     } catch (error) {
         await logger.error('Error sending single message', error);
+
+        // Anti-Ban: Record failed message
+        if (number) {
+            antiBanService.recordMessageSent(number, false);
+        }
 
         // Log failed message
         logRoutes.addLog({
@@ -118,6 +159,41 @@ router.post('/blast', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
+        // Anti-Ban: Validate message content
+        const contentValidation = antiBanService.validateMessageContent(message);
+        if (!contentValidation.isValid) {
+            await logger.warn('Blast message content validation failed', {
+                issues: contentValidation.issues,
+                riskLevel: contentValidation.riskLevel
+            });
+
+            if (contentValidation.riskLevel === 'critical') {
+                return res.status(400).json({
+                    error: 'Message content too risky for blast',
+                    issues: contentValidation.issues
+                });
+            }
+        }
+
+        // Anti-Ban: Get account stats and check limits
+        const accountStats = antiBanService.getAccountStats();
+        if (accountStats.isPaused) {
+            return res.status(429).json({
+                error: 'Blast is currently paused for safety',
+                message: 'Please wait before sending more messages'
+            });
+        }
+
+        // Check if blast would exceed daily limits
+        const dailyRemaining = accountStats.limits.day - accountStats.current.messagesPerDay;
+        if (contacts.length > dailyRemaining) {
+            return res.status(429).json({
+                error: 'Blast would exceed daily limit',
+                message: `Can only send ${dailyRemaining} more messages today`,
+                currentUsage: accountStats.usage
+            });
+        }
+
         const results = [];
         const total = contacts.length;
         let sent = 0;
@@ -127,6 +203,26 @@ router.post('/blast', async (req, res) => {
             const contact = contacts[i];
             let success = false;
             let lastError = null;
+
+            // Anti-Ban: Check if this contact can receive message
+            try {
+                await antiBanService.canSendMessage(contact.number);
+            } catch (rateLimitError) {
+                await logger.warn('Rate limit exceeded for contact', {
+                    contact: contact.number,
+                    error: rateLimitError.message
+                });
+
+                // Skip this contact and mark as failed
+                failed++;
+                results.push({
+                    contact: contact.number,
+                    success: false,
+                    error: rateLimitError.message,
+                    skipped: true
+                });
+                continue;
+            }
 
             // Retry mechanism
             for (let attempt = 1; attempt <= retryAttempts && !success; attempt++) {
@@ -174,6 +270,9 @@ router.post('/blast', async (req, res) => {
                     sent++;
                     success = true;
 
+                    // Anti-Ban: Record successful message
+                    antiBanService.recordMessageSent(contact.number, true);
+
                     await logger.blast(`Message sent successfully`, {
                         contact: contact.number,
                         attempt,
@@ -213,6 +312,9 @@ router.post('/blast', async (req, res) => {
                 });
                 failed++;
 
+                // Anti-Ban: Record failed message
+                antiBanService.recordMessageSent(contact.number, false);
+
                 await logger.error(`All attempts failed for ${contact.number}`, lastError);
 
                 // Log failed blast message
@@ -244,9 +346,23 @@ router.post('/blast', async (req, res) => {
                 console.log('[BLAST] Progress event emitted');
             }
 
-            // Add delay between messages
+            // Anti-Ban: Calculate optimal delay for next message
             if (i < contacts.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, delay));
+                const optimalDelay = antiBanService.calculateOptimalDelay(
+                    contact.number,
+                    !success // hasError
+                );
+
+                // Use the larger of user-specified delay or anti-ban delay
+                const finalDelay = Math.max(delay, optimalDelay);
+
+                await logger.info(`Waiting ${finalDelay}ms before next message`, {
+                    userDelay: delay,
+                    antiBanDelay: optimalDelay,
+                    finalDelay: finalDelay
+                });
+
+                await new Promise(resolve => setTimeout(resolve, finalDelay));
             }
         }
 
@@ -510,6 +626,66 @@ router.post('/disconnect', async (req, res) => {
     } catch (error) {
         await logger.error('Error disconnecting', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Anti-Ban status endpoint
+router.get('/anti-ban/status', async (req, res) => {
+    try {
+        const stats = antiBanService.getAccountStats();
+
+        res.json({
+            success: true,
+            antiBan: {
+                accountType: stats.accountType,
+                limits: stats.limits,
+                current: stats.current,
+                usage: stats.usage,
+                status: {
+                    isPaused: stats.isPaused,
+                    consecutiveErrors: stats.consecutiveErrors,
+                    canSendMessage: !stats.isPaused && stats.usage.hourly < 90
+                },
+                recommendations: {
+                    optimalDelay: antiBanService.calculateOptimalDelay('default', false),
+                    dailyRemaining: stats.limits.day - stats.current.messagesPerDay,
+                    hourlyRemaining: stats.limits.hour - stats.current.messagesPerHour
+                }
+            }
+        });
+    } catch (error) {
+        await logger.error('Error getting anti-ban status', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Anti-Ban configuration endpoint
+router.post('/anti-ban/configure', async (req, res) => {
+    try {
+        const { accountAge, isBusinessAccount, isVerified } = req.body;
+
+        if (accountAge !== undefined) {
+            const accountType = antiBanService.setAccountType(accountAge, isBusinessAccount, isVerified);
+
+            await logger.info('Anti-ban account type updated', {
+                accountAge,
+                isBusinessAccount,
+                isVerified,
+                accountType
+            });
+
+            res.json({
+                success: true,
+                message: 'Account type updated successfully',
+                accountType: accountType,
+                limits: antiBanService.getAccountStats().limits
+            });
+        } else {
+            res.status(400).json({ error: 'Account age is required' });
+        }
+    } catch (error) {
+        await logger.error('Error configuring anti-ban', error);
+        res.status(500).json({ error: error.message });
     }
 });
 

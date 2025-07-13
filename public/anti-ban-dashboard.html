@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anti-Ban Dashboard - WA Blast</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+    <style>
+        .status-card {
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+        .status-card.success {
+            border-left-color: #28a745;
+        }
+        .status-card.warning {
+            border-left-color: #ffc107;
+        }
+        .status-card.danger {
+            border-left-color: #dc3545;
+        }
+        .progress-ring {
+            width: 120px;
+            height: 120px;
+        }
+        .usage-meter {
+            position: relative;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .usage-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+        .usage-fill.low { background: #28a745; }
+        .usage-fill.medium { background: #ffc107; }
+        .usage-fill.high { background: #fd7e14; }
+        .usage-fill.critical { background: #dc3545; }
+        .account-badge {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+        }
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                Anti-Ban Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/" target="_blank">
+                    <i class="fas fa-home me-1"></i>
+                    Main App
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Status Overview -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card status-card" id="statusCard">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h5 class="card-title mb-1">
+                                    <i class="fas fa-shield-alt me-2"></i>
+                                    Anti-Ban Protection Status
+                                    <span class="badge account-badge ms-2" id="accountTypeBadge">Loading...</span>
+                                </h5>
+                                <p class="card-text mb-0" id="statusText">Checking protection status...</p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="d-flex align-items-center justify-content-end">
+                                    <div class="me-3">
+                                        <small class="text-muted">Last Updated</small><br>
+                                        <span id="lastUpdated">--:--</span>
+                                    </div>
+                                    <i class="fas fa-circle text-secondary" id="statusIcon"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Metrics -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Hourly Usage</h6>
+                        <div class="usage-meter mb-2">
+                            <div class="usage-fill" id="hourlyUsageFill" style="width: 0%"></div>
+                        </div>
+                        <h4 id="hourlyUsage">0/0</h4>
+                        <small id="hourlyPercentage">0%</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Daily Usage</h6>
+                        <div class="usage-meter mb-2">
+                            <div class="usage-fill" id="dailyUsageFill" style="width: 0%"></div>
+                        </div>
+                        <h4 id="dailyUsage">0/0</h4>
+                        <small id="dailyPercentage">0%</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card metric-card">
+                    <div class="card-body text-center">
+                        <h6 class="card-title">Weekly Usage</h6>
+                        <div class="usage-meter mb-2">
+                            <div class="usage-fill" id="weeklyUsageFill" style="width: 0%"></div>
+                        </div>
+                        <h4 id="weeklyUsage">0/0</h4>
+                        <small id="weeklyPercentage">0%</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Stats -->
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Current Statistics
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="text-center p-2">
+                                    <h5 class="text-success mb-1" id="messagesPerHour">0</h5>
+                                    <small class="text-muted">Messages/Hour</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center p-2">
+                                    <h5 class="text-info mb-1" id="messagesPerDay">0</h5>
+                                    <small class="text-muted">Messages/Day</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center p-2">
+                                    <h5 class="text-warning mb-1" id="messagesPerWeek">0</h5>
+                                    <small class="text-muted">Messages/Week</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center p-2">
+                                    <h5 class="text-danger mb-1" id="errorCount">0</h5>
+                                    <small class="text-muted">Errors</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>
+                            Recommendations
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Optimal Delay</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-clock"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="optimalDelay" readonly>
+                                    <span class="input-group-text">ms</span>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Daily Remaining</label>
+                                <input type="text" class="form-control" id="dailyRemaining" readonly>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Hourly Remaining</label>
+                                <input type="text" class="form-control" id="hourlyRemaining" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Configuration -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-user-cog me-2"></i>
+                            Account Configuration
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="accountConfigForm">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Account Age (Days)</label>
+                                    <input type="number" class="form-control" id="accountAge" min="1" max="3650" placeholder="e.g., 90">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Account Type</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="isBusinessAccount">
+                                        <label class="form-check-label" for="isBusinessAccount">
+                                            WhatsApp Business
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="isVerified">
+                                        <label class="form-check-label" for="isVerified">
+                                            Verified Account
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-save me-2"></i>
+                                        Update Configuration
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Safety Guidelines -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Safety Guidelines
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-success">✅ Best Practices</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-check text-success me-2"></i>Use delays of 8-15 seconds between messages</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Limit to 50-100 messages per hour</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Personalize messages with variables</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Send during business hours (8 AM - 10 PM)</li>
+                                    <li><i class="fas fa-check text-success me-2"></i>Monitor error rates and pause if needed</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-danger">❌ Avoid These</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="fas fa-times text-danger me-2"></i>Sending identical messages repeatedly</li>
+                                    <li><i class="fas fa-times text-danger me-2"></i>Using spam keywords (promo, gratis, etc.)</li>
+                                    <li><i class="fas fa-times text-danger me-2"></i>Sending too many messages too quickly</li>
+                                    <li><i class="fas fa-times text-danger me-2"></i>Ignoring error messages and warnings</li>
+                                    <li><i class="fas fa-times text-danger me-2"></i>Sending messages outside active hours</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Refresh Button -->
+    <button class="btn btn-primary btn-lg rounded-circle refresh-btn" onclick="loadAntiBanStatus()" title="Refresh Data">
+        <i class="fas fa-sync-alt"></i>
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    <script src="anti-ban-dashboard.js"></script>
+</body>
+</html>
