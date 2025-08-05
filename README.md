@@ -82,6 +82,34 @@ A powerful WhatsApp blast messaging application built with Baileys, Express.js, 
 - `company` - Company name
 - `address` - Address
 - `notes` - Additional notes
+- Any custom fields (position, department, city, etc.)
+
+### 2.1. Search and Filter Contacts
+
+**🔍 Search Features:**
+- **Real-time search** - Search as you type
+- **Multi-field search** - Search across name, number, email, company, and custom fields
+- **Highlight results** - Search terms are highlighted in yellow
+- **Search statistics** - Shows "X of Y contacts" with color indicators
+
+**🎯 Filter Options:**
+- **Group filter** - Filter by specific groups
+- **Selected only** - Show only selected contacts
+- **With groups only** - Show contacts that have groups
+- **Advanced options** - Toggle additional filter options
+
+**⚡ Bulk Actions:**
+- **Select Filtered** - Select all contacts matching current search/filter
+- **Select All/None** - Quick selection controls
+- **Add to Group** - Add selected contacts to groups
+
+**Usage Examples:**
+```
+Search "ELECTRICIAN" → Shows all electrician contacts
+Search "Jakarta" → Shows contacts from Jakarta
+Search "Level 3" → Shows contacts with Level 3 skills
+Filter by group + search → Combine filters for precise results
+```
 
 ### 3. Send Single Message
 

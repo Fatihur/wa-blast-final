@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: wa-blast
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: HOST
+        value: 0.0.0.0
+      - key: SESSION_NAME
+        value: wa-blast-session
+      - key: UPLOAD_PATH
+        value: ./uploads
+      - key: MAX_FILE_SIZE
+        value: 50MB
+    disk:
+      name: wa-blast-disk
+      mountPath: /app/sessions
+      sizeGB: 1

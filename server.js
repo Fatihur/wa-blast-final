@@ -26,13 +26,14 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static('public'));
 
 // Ensure directories exist
 fs.ensureDirSync('./uploads');
 fs.ensureDirSync('./sessions');
+fs.ensureDirSync('./documents');
 
 // Initialize WhatsApp service with socket
 whatsappService.initialize(io);
@@ -44,6 +45,7 @@ app.set('io', io);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/groups', require('./routes/groupRoutes'));
 app.use('/api/logs', logRoutes);
 app.use('/api/file-matching', fileMatchingRoutes);
 
@@ -112,9 +114,18 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Something went wrong!' });
 });
 
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Open http://localhost:${PORT} to access the application`);
-});
+const HOST = process.env.HOST || 'localhost';
 
-module.exports = { app, server, io };
+// For cPanel hosting, don't start server if module is being required
+if (require.main === module) {
+    server.listen(PORT, HOST, () => {
+        console.log(`Server running on ${HOST}:${PORT}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`Open http://localhost:${PORT} to access the application`);
+        }
+    });
+}
+
+// Export for cPanel
+module.exports = app;

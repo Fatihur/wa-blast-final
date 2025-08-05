@@ -5,7 +5,9 @@ class WABlastApp {
         this.socket = io();
         this.contacts = [];
         this.headers = [];
+        this.groups = [];
         this.isConnected = false;
+        this.isDesktop = window.electronAPI ? true : false;
         this.init();
     }
 
@@ -16,6 +18,7 @@ class WABlastApp {
         this.setupFormHandlers();
         this.checkConnectionStatus();
         this.loadStoredContacts();
+        this.loadGroups();
 
         // Initialize empty summary if no contacts
         if (this.contacts.length === 0) {
@@ -25,6 +28,11 @@ class WABlastApp {
                 invalid: 0,
                 selected: 0
             });
+        }
+
+        // Setup desktop menu handlers
+        if (this.isDesktop) {
+            this.setupDesktopMenuHandlers();
         }
     }
 
@@ -85,8 +93,15 @@ class WABlastApp {
             tab.addEventListener('shown.bs.tab', (e) => {
                 if (e.target.id === 'blast-tab') {
                     this.initBlastTab();
+                } else if (e.target.id === 'groups-tab') {
+                    this.loadGroups();
                 }
             });
+        });
+
+        // Group filter change
+        document.getElementById('contactGroupFilter').addEventListener('change', (e) => {
+            this.filterContactsByGroup(e.target.value);
         });
     }
 
@@ -105,6 +120,40 @@ class WABlastApp {
         document.getElementById('singleNumber').addEventListener('blur', (e) => {
             this.validatePhoneNumber(e.target);
         });
+
+        // Group creation form
+        document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                name: document.getElementById('groupName').value.trim(),
+                description: document.getElementById('groupDescription').value.trim(),
+                color: document.getElementById('groupColor').value
+            };
+
+            if (!formData.name) {
+                this.showWarningNotification('Group Name Required', 'Please enter a group name');
+                return;
+            }
+
+            try {
+                await this.createGroup(formData);
+                // Reset form
+                document.getElementById('createGroupForm').reset();
+                document.getElementById('groupColor').value = '#007bff';
+            } catch (error) {
+                // Error already handled in createGroup method
+            }
+        });
+
+        // Add to Group Modal handlers
+        document.getElementById('addToGroupBtn').addEventListener('click', async () => {
+            await this.handleAddToGroup();
+        });
+
+        document.getElementById('bulkAddToGroupBtn').addEventListener('click', async () => {
+            await this.handleBulkAddToGroup();
+        });
     }
 
     async checkConnectionStatus() {
@@ -119,12 +168,23 @@ class WABlastApp {
 
     async loadStoredContacts() {
         try {
-            const response = await fetch('/api/contacts');
+            const response = await fetch('/api/contacts?includeGroups=true');
             const data = await response.json();
 
             if (data.success) {
-                this.contacts = data.contacts;
+                this.contacts = data.contacts || [];
                 this.headers = data.headers;
+
+                // Ensure all contact IDs are integers
+                this.contacts = this.contacts.map(contact => ({
+                    ...contact,
+                    id: parseInt(contact.id)
+                }));
+
+                console.log('Loaded contacts:', this.contacts.length);
+                if (this.contacts.length > 0) {
+                    console.log('Sample contact IDs:', this.contacts.slice(0, 3).map(c => ({ id: c.id, type: typeof c.id })));
+                }
 
                 // Calculate proper summary
                 const summary = {
@@ -136,6 +196,15 @@ class WABlastApp {
 
                 this.updateContactSummary(summary);
                 this.displayContacts(this.contacts);
+
+                // Update search count if search is active
+                setTimeout(() => {
+                    const searchCount = document.getElementById('mainContactSearchCount');
+                    if (searchCount && !searchCount.textContent.includes('Showing')) {
+                        searchCount.textContent = `${this.contacts.length} contacts total`;
+                        searchCount.className = 'text-muted';
+                    }
+                }, 100);
             }
         } catch (error) {
             console.error('Error loading stored contacts:', error);
@@ -230,8 +299,117 @@ class WABlastApp {
         }
     }
 
+    // Desktop menu handlers
+    setupDesktopMenuHandlers() {
+        if (window.electronAPI && window.electronAPI.onMenuAction) {
+            window.electronAPI.onMenuAction((event, action) => {
+                this.handleDesktopMenuAction(action);
+            });
+        }
+    }
+
+    handleDesktopMenuAction(action) {
+        switch (action) {
+            case 'new-contact':
+                this.showAddContactModal();
+                break;
+            case 'import-contacts':
+                this.importContacts();
+                break;
+            case 'connect-whatsapp':
+                this.connectWhatsApp();
+                break;
+            case 'disconnect-whatsapp':
+                this.disconnectWhatsApp();
+                break;
+            case 'test-message':
+                this.showTestMessageModal();
+                break;
+            default:
+                console.log('Unknown menu action:', action);
+        }
+    }
+
+    showAddContactModal() {
+        // Show modal to add new contact
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Add New Contact',
+                html: `
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" id="newContactName" class="form-control" placeholder="Contact Name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="text" id="newContactNumber" class="form-control" placeholder="628xxxxxxxxx">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email (Optional)</label>
+                        <input type="email" id="newContactEmail" class="form-control" placeholder="email@example.com">
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Add Contact',
+                cancelButtonText: 'Cancel',
+                preConfirm: () => {
+                    const name = document.getElementById('newContactName').value;
+                    const number = document.getElementById('newContactNumber').value;
+                    const email = document.getElementById('newContactEmail').value;
+
+                    if (!name || !number) {
+                        Swal.showValidationMessage('Name and phone number are required');
+                        return false;
+                    }
+
+                    return { name, number, email };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    this.addNewContact(result.value);
+                }
+            });
+        }
+    }
+
+    showTestMessageModal() {
+        // Switch to single message tab and focus
+        const singleTab = document.getElementById('single-tab');
+        if (singleTab) {
+            singleTab.click();
+            setTimeout(() => {
+                const numberInput = document.getElementById('singleNumber');
+                if (numberInput) {
+                    numberInput.focus();
+                }
+            }, 100);
+        }
+    }
+
+    addNewContact(contactData) {
+        // Add contact to the list
+        const newContact = {
+            name: contactData.name,
+            number: contactData.number,
+            email: contactData.email || '',
+            selected: false
+        };
+
+        this.contacts.push(newContact);
+        this.saveContactsToStorage();
+        this.renderContacts();
+        this.updateContactSummary();
+
+        this.showSuccessNotification('Contact Added', `${contactData.name} has been added to your contacts`);
+    }
+
     // Notification methods
     showSuccessNotification(title, message = '') {
+        // Desktop notification
+        if (this.isDesktop && window.desktopNotifications) {
+            window.desktopNotifications.success(title, message);
+        }
+
         if (this.Toast) {
             this.Toast.fire({
                 icon: 'success',
@@ -244,6 +422,11 @@ class WABlastApp {
     }
 
     showErrorNotification(title, message = '') {
+        // Desktop notification
+        if (this.isDesktop && window.desktopNotifications) {
+            window.desktopNotifications.error(title, message);
+        }
+
         if (this.Toast) {
             this.Toast.fire({
                 icon: 'error',
@@ -256,6 +439,11 @@ class WABlastApp {
     }
 
     showWarningNotification(title, message = '') {
+        // Desktop notification
+        if (this.isDesktop && window.desktopNotifications) {
+            window.desktopNotifications.warning(title, message);
+        }
+
         if (this.Toast) {
             this.Toast.fire({
                 icon: 'warning',
@@ -268,6 +456,11 @@ class WABlastApp {
     }
 
     showInfoNotification(title, message = '') {
+        // Desktop notification
+        if (this.isDesktop && window.desktopNotifications) {
+            window.desktopNotifications.info(title, message);
+        }
+
         if (this.Toast) {
             this.Toast.fire({
                 icon: 'info',
@@ -626,18 +819,48 @@ class WABlastApp {
     }
 
     async importContacts() {
+        let file = null;
+
+        // Desktop file selection
+        if (this.isDesktop && window.desktopFiles) {
+            try {
+                const result = await window.desktopFiles.importContacts();
+                if (result.canceled) {
+                    return;
+                }
+
+                if (result.filePaths && result.filePaths.length > 0) {
+                    // For desktop, we need to handle file differently
+                    // Create a File object from the path
+                    const filePath = result.filePaths[0];
+                    const fileName = filePath.split('\\').pop().split('/').pop();
+
+                    // Read file content (this would need to be implemented in preload)
+                    // For now, we'll use the regular file input as fallback
+                    this.showInfoNotification('File Selected', `Selected: ${fileName}`);
+                }
+            } catch (error) {
+                console.error('Desktop file selection error:', error);
+                this.showErrorNotification('File Selection Failed', error.message);
+                return;
+            }
+        }
+
+        // Fallback to regular file input
         const fileInput = document.getElementById('contactFile');
-        
-        if (!fileInput.files[0]) {
+
+        if (!file && (!fileInput.files || !fileInput.files[0])) {
             this.showWarningNotification('No File Selected', 'Please select a file to import');
             return;
         }
+
+        file = file || fileInput.files[0];
 
         this.showLoading('Importing contacts...');
 
         try {
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            formData.append('file', file);
 
             const response = await fetch('/api/contacts/import', {
                 method: 'POST',
@@ -781,9 +1004,19 @@ class WABlastApp {
                 <td>${contact.email || '-'}</td>
                 <td>${contact.company || '-'}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-danger" onclick="app.removeContact(${contact.id})">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    ${contact.groups ? contact.groups.map(group =>
+                        `<span class="badge me-1" style="background-color: ${group.color}">${group.name}</span>`
+                    ).join('') : '-'}
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-success" onclick="app.showAddToGroupModal(${contact.id})" title="Add to Group">
+                            <i class="fas fa-users"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="app.removeContact(${contact.id})" title="Delete Contact">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </td>
             `;
             tableBody.appendChild(row);
@@ -792,7 +1025,7 @@ class WABlastApp {
         // Add select all/none buttons
         const selectAllRow = document.createElement('tr');
         selectAllRow.innerHTML = `
-            <td colspan="6" class="text-center bg-light">
+            <td colspan="7" class="text-center bg-light">
                 <button class="btn btn-sm btn-outline-primary me-2" onclick="app.selectAllContacts(true)">
                     <i class="fas fa-check-square me-1"></i>
                     Select All
@@ -830,6 +1063,7 @@ class WABlastApp {
                     }
 
                     this.updateSelectedCount();
+                    this.updateBulkActionButtons();
                 } catch (error) {
                     console.error('Error updating contact selection:', error);
                     // Revert checkbox state on error
@@ -840,6 +1074,7 @@ class WABlastApp {
 
         table.style.display = 'block';
         this.updateSelectedCount();
+        this.updateBulkActionButtons();
     }
 
     selectNumberForSingle(number) {
@@ -880,6 +1115,7 @@ class WABlastApp {
                 });
 
                 this.updateSelectedCount();
+                this.updateBulkActionButtons();
             }
         } catch (error) {
             console.error('Error updating all contact selection:', error);
@@ -904,6 +1140,21 @@ class WABlastApp {
         };
 
         this.updateContactSummary(summary);
+    }
+
+    updateBulkActionButtons() {
+        const selectedCount = document.querySelectorAll('.contact-checkbox:checked').length;
+        const bulkAddBtn = document.getElementById('bulkAddToGroupBtnMain');
+
+        if (bulkAddBtn) {
+            if (selectedCount > 0) {
+                bulkAddBtn.disabled = false;
+                bulkAddBtn.innerHTML = `<i class="fas fa-users me-1"></i>Add Selected (${selectedCount}) to Group`;
+            } else {
+                bulkAddBtn.disabled = true;
+                bulkAddBtn.innerHTML = `<i class="fas fa-users me-1"></i>Add Selected to Group`;
+            }
+        }
     }
 
     getSelectedContacts() {
@@ -961,6 +1212,551 @@ class WABlastApp {
         }
     }
 
+    // Group Management Methods
+    async loadGroups() {
+        try {
+            const response = await fetch('/api/groups');
+            const data = await response.json();
+
+            if (data.success) {
+                this.groups = data.groups || [];
+
+                // Ensure all group IDs are numbers (but keep as they are since they might be floats)
+                this.groups = this.groups.map(group => ({
+                    ...group,
+                    id: parseFloat(group.id) // Use parseFloat to handle decimal IDs
+                }));
+
+                console.log('Loaded groups:', this.groups.length);
+                if (this.groups.length > 0) {
+                    console.log('Sample group IDs:', this.groups.slice(0, 3).map(g => ({ id: g.id, type: typeof g.id })));
+                }
+
+                this.updateGroupStatistics(data.statistics);
+                this.displayGroups();
+                this.updateGroupFilter();
+            }
+        } catch (error) {
+            console.error('Error loading groups:', error);
+        }
+    }
+
+    async createGroup(groupData) {
+        try {
+            const response = await fetch('/api/groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(groupData)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.groups.push(result.group);
+                this.displayGroups();
+                this.updateGroupFilter();
+                this.showSuccessNotification('Group Created', `Group "${result.group.name}" has been created successfully`);
+                return result.group;
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('Error creating group:', error);
+            this.showErrorNotification('Error Creating Group', error.message);
+            throw error;
+        }
+    }
+
+    async deleteGroup(groupId) {
+        if (!confirm('Are you sure you want to delete this group? This will remove all contacts from the group but won\'t delete the contacts themselves.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.groups = this.groups.filter(g => g.id !== groupId);
+                this.displayGroups();
+                this.updateGroupFilter();
+                this.showSuccessNotification('Group Deleted', 'Group has been deleted successfully');
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('Error deleting group:', error);
+            this.showErrorNotification('Error Deleting Group', error.message);
+        }
+    }
+
+    async addContactsToGroup(groupId, contactIds) {
+        try {
+            // Ensure contactIds are integers
+            const validContactIds = contactIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+
+            console.log('Original contactIds:', contactIds);
+            console.log('Valid contactIds:', validContactIds);
+            console.log('GroupId:', groupId, typeof groupId);
+
+            const response = await fetch(`/api/groups/${groupId}/contacts/bulk`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ contactIds: validContactIds })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showSuccessNotification('Contacts Added', `${result.results.added.length} contacts added to group`);
+                this.loadStoredContacts(); // Refresh contacts to show updated group info
+                return result;
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('Error adding contacts to group:', error);
+            this.showErrorNotification('Error Adding Contacts', error.message);
+            throw error;
+        }
+    }
+
+    async removeContactFromGroup(groupId, contactId) {
+        try {
+            const response = await fetch(`/api/groups/${groupId}/contacts/${contactId}`, {
+                method: 'DELETE'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showSuccessNotification('Contact Removed', 'Contact removed from group successfully');
+                this.loadStoredContacts(); // Refresh contacts to show updated group info
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('Error removing contact from group:', error);
+            this.showErrorNotification('Error Removing Contact', error.message);
+        }
+    }
+
+    updateGroupStatistics(statistics) {
+        const statsContainer = document.getElementById('groupStatistics');
+        if (statsContainer && statistics) {
+            statsContainer.innerHTML = `
+                <div class="row">
+                    <div class="col-6">
+                        <div class="text-center">
+                            <h4 class="text-primary">${statistics.totalGroups}</h4>
+                            <small class="text-muted">Total Groups</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center">
+                            <h4 class="text-success">${statistics.totalMemberships}</h4>
+                            <small class="text-muted">Total Memberships</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    displayGroups() {
+        const container = document.getElementById('groupsContainer');
+        if (!container) return;
+
+        if (this.groups.length === 0) {
+            container.innerHTML = '<p class="text-muted">No groups created yet. Create your first group above.</p>';
+            return;
+        }
+
+        container.innerHTML = this.groups.map(group => `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title">
+                                <span class="badge me-2" style="background-color: ${group.color}">&nbsp;</span>
+                                ${group.name}
+                                <span class="badge bg-secondary ms-2">${group.memberCount} members</span>
+                            </h6>
+                            ${group.description ? `<p class="card-text text-muted">${group.description}</p>` : ''}
+                            <small class="text-muted">Created: ${new Date(group.createdAt).toLocaleDateString()}</small>
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="app.showGroupDetails(${group.id})" title="View Details">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="app.showAddContactsToGroupModal(${group.id})" title="Add Contacts">
+                                <i class="fas fa-user-plus"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="app.deleteGroup(${group.id})" title="Delete Group">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    updateGroupFilter() {
+        const filterSelect = document.getElementById('contactGroupFilter');
+        if (!filterSelect) return;
+
+        // Clear existing options except "All Contacts"
+        filterSelect.innerHTML = '<option value="">All Contacts</option>';
+
+        // Add group options
+        this.groups.forEach(group => {
+            const option = document.createElement('option');
+            option.value = group.id;
+            option.textContent = `${group.name} (${group.memberCount} members)`;
+            filterSelect.appendChild(option);
+        });
+    }
+
+    filterContactsByGroup(groupId) {
+        if (!groupId) {
+            // Show all contacts
+            this.displayContacts(this.contacts);
+        } else {
+            // Filter contacts by group
+            const filteredContacts = this.contacts.filter(contact =>
+                contact.groups && contact.groups.some(group => group.id == groupId)
+            );
+            this.displayContacts(filteredContacts);
+        }
+    }
+
+    showGroupDetails(groupId) {
+        // This could open a modal with detailed group information
+        const group = this.groups.find(g => g.id === groupId);
+        if (group) {
+            alert(`Group: ${group.name}\nMembers: ${group.memberCount}\nDescription: ${group.description || 'No description'}`);
+        }
+    }
+
+    showAddContactsToGroupModal(groupId) {
+        // Simple implementation - could be enhanced with a proper modal
+        const group = this.groups.find(g => g.id === groupId);
+        if (!group) return;
+
+        const selectedContacts = this.getSelectedContacts();
+        if (selectedContacts.length === 0) {
+            this.showWarningNotification('No Contacts Selected', 'Please select contacts to add to the group');
+            return;
+        }
+
+        if (confirm(`Add ${selectedContacts.length} selected contacts to group "${group.name}"?`)) {
+            const contactIds = selectedContacts.map(c => c.id);
+            this.addContactsToGroup(groupId, contactIds);
+        }
+    }
+
+    showAddToGroupModal(contactId) {
+        const contact = this.contacts.find(c => c.id === contactId);
+        if (!contact) return;
+
+        if (this.groups.length === 0) {
+            this.showWarningNotification('No Groups Available', 'Please create a group first in the Groups tab');
+            return;
+        }
+
+        // Set selected contact info
+        document.getElementById('selectedContactName').textContent = `${contact.name} (${contact.number})`;
+
+        // Store contact ID for later use
+        this.selectedContactForGroup = contactId;
+
+        // Load groups into modal
+        this.loadGroupsIntoModal('groupSelectionList', 'noGroupsAlert');
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('addToGroupModal'));
+        modal.show();
+    }
+
+    showBulkAddToGroupModal() {
+        const selectedContacts = this.getSelectedContacts();
+
+        if (selectedContacts.length === 0) {
+            this.showWarningNotification('No Contacts Selected', 'Please select contacts first');
+            return;
+        }
+
+        // Refresh groups first to ensure we have latest data
+        this.loadGroups().then(() => {
+            if (this.groups.length === 0) {
+                this.showWarningNotification('No Groups Available', 'Please create a group first in the Groups tab');
+                return;
+            }
+
+            // Set selected contacts info
+            document.getElementById('selectedContactsCount').textContent = selectedContacts.length;
+
+            // Store selected contacts for later use
+            this.selectedContactsForGroup = selectedContacts.map(c => c.id);
+
+            // Load groups into modal
+            this.loadGroupsIntoModal('bulkGroupSelectionList', 'bulkNoGroupsAlert');
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('bulkAddToGroupModal'));
+            modal.show();
+        });
+    }
+
+    loadGroupsIntoModal(containerId, alertId) {
+        const container = document.getElementById(containerId);
+        const alert = document.getElementById(alertId);
+
+        if (this.groups.length === 0) {
+            container.style.display = 'none';
+            alert.style.display = 'block';
+            return;
+        }
+
+        alert.style.display = 'none';
+        container.style.display = 'block';
+
+        container.innerHTML = this.groups.map(group => `
+            <div class="form-check mb-2">
+                <input class="form-check-input group-modal-checkbox" type="checkbox" value="${group.id}" id="modal_group_${group.id}">
+                <label class="form-check-label d-flex align-items-center" for="modal_group_${group.id}">
+                    <span class="badge me-2" style="background-color: ${group.color}">&nbsp;</span>
+                    <div class="flex-grow-1">
+                        <strong>${group.name}</strong>
+                        ${group.description ? `<br><small class="text-muted">${group.description}</small>` : ''}
+                        <br><small class="text-info">${group.memberCount} members</small>
+                    </div>
+                </label>
+            </div>
+        `).join('');
+    }
+
+    async handleAddToGroup() {
+        const selectedGroupIds = Array.from(document.querySelectorAll('.group-modal-checkbox:checked'))
+            .map(cb => parseFloat(cb.value));
+
+        if (selectedGroupIds.length === 0) {
+            this.showWarningNotification('No Groups Selected', 'Please select at least one group');
+            return;
+        }
+
+        const contactId = this.selectedContactForGroup;
+        const contact = this.contacts.find(c => c.id === contactId);
+
+        if (!contact) {
+            this.showErrorNotification('Contact Not Found', 'Selected contact not found');
+            return;
+        }
+
+        try {
+            let successCount = 0;
+            let errorCount = 0;
+            const errors = [];
+
+            for (const groupId of selectedGroupIds) {
+                try {
+                    await this.addContactsToGroup(groupId, [contactId]);
+                    successCount++;
+                } catch (error) {
+                    errorCount++;
+                    const group = this.groups.find(g => g.id === groupId);
+                    errors.push(`${group?.name || 'Unknown Group'}: ${error.message}`);
+                }
+            }
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addToGroupModal'));
+            modal.hide();
+
+            // Show results
+            if (successCount > 0) {
+                this.showSuccessNotification(
+                    'Contact Added to Groups',
+                    `${contact.name} was added to ${successCount} group(s)`
+                );
+            }
+
+            if (errorCount > 0) {
+                this.showWarningNotification(
+                    'Some Groups Failed',
+                    `Failed to add to ${errorCount} group(s): ${errors.join(', ')}`
+                );
+            }
+
+            // Refresh contact display
+            this.loadStoredContacts();
+
+        } catch (error) {
+            console.error('Error in handleAddToGroup:', error);
+            this.showErrorNotification('Error Adding to Group', error.message);
+        }
+    }
+
+    async handleBulkAddToGroup() {
+        const selectedGroupIds = Array.from(document.querySelectorAll('.group-modal-checkbox:checked'))
+            .map(cb => parseFloat(cb.value));
+
+        if (selectedGroupIds.length === 0) {
+            this.showWarningNotification('No Groups Selected', 'Please select at least one group');
+            return;
+        }
+
+        const contactIds = this.selectedContactsForGroup;
+
+        if (!contactIds || contactIds.length === 0) {
+            this.showErrorNotification('No Contacts Selected', 'No contacts selected for bulk operation');
+            return;
+        }
+
+        // Debug logging
+        console.log('Selected Group IDs:', selectedGroupIds);
+        console.log('Contact IDs to add:', contactIds);
+        console.log('Available groups:', this.groups);
+
+        try {
+            let totalSuccess = 0;
+            let totalErrors = 0;
+            let totalAlreadyInGroup = 0;
+            const groupResults = [];
+            const errorDetails = [];
+
+            for (const groupId of selectedGroupIds) {
+                try {
+                    const group = this.groups.find(g => g.id === groupId);
+                    if (!group) {
+                        errorDetails.push(`Group with ID ${groupId} not found`);
+                        totalErrors += contactIds.length;
+                        continue;
+                    }
+
+                    console.log(`Adding ${contactIds.length} contacts to group: ${group.name}`);
+
+                    const result = await this.addContactsToGroup(groupId, contactIds);
+
+                    console.log('Add result:', result);
+
+                    if (result && result.results) {
+                        totalSuccess += result.results.added.length;
+                        totalErrors += result.results.failed.length;
+                        totalAlreadyInGroup += result.results.alreadyInGroup.length;
+
+                        groupResults.push(`${group.name}: ${result.results.added.length} added, ${result.results.alreadyInGroup.length} already in group, ${result.results.failed.length} failed`);
+
+                        // Log failed contacts for debugging
+                        if (result.results.failed.length > 0) {
+                            console.log(`Failed contacts for group ${group.name}:`, result.results.failed);
+                            result.results.failed.forEach(failure => {
+                                errorDetails.push(`${group.name}: Contact ${failure.contactId} - ${failure.error}`);
+                            });
+                        }
+                    }
+                } catch (error) {
+                    const group = this.groups.find(g => g.id === groupId);
+                    console.error(`Error adding contacts to group ${group?.name}:`, error);
+                    totalErrors += contactIds.length;
+                    groupResults.push(`${group?.name}: Failed - ${error.message}`);
+                    errorDetails.push(`${group?.name}: ${error.message}`);
+                }
+            }
+
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('bulkAddToGroupModal'));
+            modal.hide();
+
+            // Show detailed results
+            if (totalSuccess > 0) {
+                this.showSuccessNotification(
+                    'Bulk Add Completed',
+                    `${totalSuccess} contacts successfully added to groups.`
+                );
+            }
+
+            if (totalAlreadyInGroup > 0) {
+                this.showInfoNotification(
+                    'Some Contacts Already in Groups',
+                    `${totalAlreadyInGroup} contacts were already in the selected groups.`
+                );
+            }
+
+            if (totalErrors > 0) {
+                console.error('Error details:', errorDetails);
+                this.showErrorNotification(
+                    'Some Operations Failed',
+                    `${totalErrors} operations failed. Details: ${errorDetails.slice(0, 3).join('; ')}${errorDetails.length > 3 ? '...' : ''}`
+                );
+            }
+
+            // Show summary
+            console.log('Bulk add summary:', {
+                totalSuccess,
+                totalAlreadyInGroup,
+                totalErrors,
+                groupResults,
+                errorDetails
+            });
+
+            // Refresh contact display
+            this.loadStoredContacts();
+
+        } catch (error) {
+            console.error('Error in handleBulkAddToGroup:', error);
+            this.showErrorNotification('Error in Bulk Operation', error.message);
+        }
+    }
+
+    debugGroupInfo() {
+        const selectedContacts = this.getSelectedContacts();
+        const debugInfo = {
+            totalContacts: this.contacts.length,
+            selectedContacts: selectedContacts.length,
+            selectedContactIds: selectedContacts.map(c => c.id),
+            selectedContactIdsTypes: selectedContacts.map(c => ({ id: c.id, type: typeof c.id })),
+            totalGroups: this.groups.length,
+            groups: this.groups.map(g => ({
+                id: g.id,
+                type: typeof g.id,
+                name: g.name,
+                memberCount: g.memberCount
+            })),
+            contactSample: this.contacts.slice(0, 3).map(c => ({
+                id: c.id,
+                type: typeof c.id,
+                name: c.name,
+                number: c.number
+            })),
+            selectedContactsForGroup: this.selectedContactsForGroup
+        };
+
+        console.log('=== DEBUG GROUP INFO ===');
+        console.log(debugInfo);
+
+        alert(`Debug Info (check console for details):
+
+Total Contacts: ${debugInfo.totalContacts}
+Selected Contacts: ${debugInfo.selectedContacts}
+Total Groups: ${debugInfo.totalGroups}
+
+Selected Contact IDs: ${debugInfo.selectedContactIds.join(', ')}
+Contact ID Types: ${debugInfo.selectedContactIdsTypes.map(c => `${c.id}(${c.type})`).join(', ')}
+
+Groups: ${debugInfo.groups.map(g => `${g.name} (ID: ${g.id}, Type: ${g.type})`).join(', ')}
+
+Check browser console for full details.`);
+    }
+
     initBlastTab() {
         const blastContent = document.getElementById('blastContent');
 
@@ -980,11 +1776,35 @@ class WABlastApp {
     }
 
     updateBlastContactCount() {
-        const selectedContacts = this.getSelectedContacts();
         const countElement = document.getElementById('blastContactCount');
-        if (countElement) {
-            countElement.textContent = selectedContacts.length;
+        if (!countElement) return;
+
+        const recipientType = document.getElementById('recipientType')?.value || 'selected';
+        let contactCount = 0;
+
+        if (recipientType === 'all') {
+            contactCount = this.contacts.length;
+        } else if (recipientType === 'groups') {
+            // Count contacts in selected groups
+            const selectedGroupIds = Array.from(document.querySelectorAll('.group-checkbox:checked'))
+                .map(cb => parseFloat(cb.value));
+
+            const contactsInGroups = new Set();
+            selectedGroupIds.forEach(groupId => {
+                this.contacts.forEach(contact => {
+                    if (contact.groups && contact.groups.some(g => g.id === groupId)) {
+                        contactsInGroups.add(contact.id);
+                    }
+                });
+            });
+            contactCount = contactsInGroups.size;
+        } else {
+            // Selected contacts
+            const selectedContacts = this.getSelectedContacts();
+            contactCount = selectedContacts.length;
         }
+
+        countElement.textContent = contactCount;
     }
 
     updateDynamicVariables() {
@@ -1041,6 +1861,31 @@ class WABlastApp {
                         <label for="blastDelay" class="form-label">Delay Between Messages (ms)</label>
                         <input type="number" class="form-control" id="blastDelay" value="1000" min="500" max="10000">
                         <div class="form-text">Recommended: 1000-3000ms to avoid being blocked</div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="recipientType" class="form-label">Send To</label>
+                        <select class="form-select" id="recipientType">
+                            <option value="selected">Selected Contacts</option>
+                            <option value="groups">Specific Groups</option>
+                            <option value="all">All Contacts</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6" id="groupSelectionContainer" style="display: none;">
+                        <label for="selectedGroups" class="form-label">Select Groups</label>
+                        <div id="groupCheckboxes" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                            ${this.groups.map(group => `
+                                <div class="form-check">
+                                    <input class="form-check-input group-checkbox" type="checkbox" value="${group.id}" id="group_${group.id}">
+                                    <label class="form-check-label" for="group_${group.id}">
+                                        <span class="badge me-2" style="background-color: ${group.color}">&nbsp;</span>
+                                        ${group.name} (${group.memberCount} members)
+                                    </label>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
 
@@ -1175,6 +2020,19 @@ class WABlastApp {
             this.previewMessage();
         });
 
+        // Recipient type change
+        document.getElementById('recipientType').addEventListener('change', (e) => {
+            this.toggleGroupSelection(e.target.value);
+            this.updateBlastContactCount();
+        });
+
+        // Group checkbox changes
+        document.querySelectorAll('.group-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.updateBlastContactCount();
+            });
+        });
+
         // Blast form submission
         document.getElementById('blastMessageForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -1194,6 +2052,27 @@ class WABlastApp {
         } else if (type === 'mixed') {
             mixedFileUpload.style.display = 'block';
         }
+    }
+
+    toggleGroupSelection(recipientType) {
+        const groupContainer = document.getElementById('groupSelectionContainer');
+        const sendButton = document.getElementById('sendBlastBtn');
+
+        if (recipientType === 'groups') {
+            groupContainer.style.display = 'block';
+        } else {
+            groupContainer.style.display = 'none';
+        }
+
+        // Update button text based on recipient type
+        const buttonText = recipientType === 'groups' ? 'Send Blast to Selected Groups' :
+                          recipientType === 'all' ? 'Send Blast to All Contacts' :
+                          'Send Blast to Selected Contacts';
+
+        sendButton.innerHTML = `
+            <i class="fas fa-broadcast-tower me-2"></i>
+            ${buttonText} (<span id="blastContactCount">0</span>)
+        `;
     }
 
     async handleMixedFilesUpload(files) {
@@ -1322,15 +2201,52 @@ class WABlastApp {
         const message = document.getElementById('blastMessage').value;
         const type = document.getElementById('blastType').value;
         const delay = parseInt(document.getElementById('blastDelay').value);
-        const selectedContacts = this.getSelectedContacts();
+        const recipientType = document.getElementById('recipientType').value;
 
         if (!message) {
             this.showWarningNotification('Message Required', 'Please enter a message');
             return;
         }
 
-        if (selectedContacts.length === 0) {
-            this.showWarningNotification('No Contacts Selected', 'Please select at least one contact');
+        // Get target contacts based on recipient type
+        let targetContacts = [];
+        let recipientDescription = '';
+
+        if (recipientType === 'all') {
+            targetContacts = this.contacts;
+            recipientDescription = `${targetContacts.length} contacts (All Contacts)`;
+        } else if (recipientType === 'groups') {
+            const selectedGroupIds = Array.from(document.querySelectorAll('.group-checkbox:checked'))
+                .map(cb => parseFloat(cb.value));
+
+            if (selectedGroupIds.length === 0) {
+                this.showWarningNotification('No Groups Selected', 'Please select at least one group');
+                return;
+            }
+
+            const contactsInGroups = new Set();
+            const selectedGroupNames = [];
+
+            selectedGroupIds.forEach(groupId => {
+                const group = this.groups.find(g => g.id === groupId);
+                if (group) selectedGroupNames.push(group.name);
+
+                this.contacts.forEach(contact => {
+                    if (contact.groups && contact.groups.some(g => g.id === groupId)) {
+                        contactsInGroups.add(contact);
+                    }
+                });
+            });
+
+            targetContacts = Array.from(contactsInGroups);
+            recipientDescription = `${targetContacts.length} contacts from groups: ${selectedGroupNames.join(', ')}`;
+        } else {
+            targetContacts = this.getSelectedContacts();
+            recipientDescription = `${targetContacts.length} selected contacts`;
+        }
+
+        if (targetContacts.length === 0) {
+            this.showWarningNotification('No Recipients', 'No contacts found for the selected criteria');
             return;
         }
 
@@ -1340,7 +2256,7 @@ class WABlastApp {
                 title: 'Confirm Blast Message',
                 html: `
                     <div class="text-start">
-                        <p><strong>Recipients:</strong> ${selectedContacts.length} contacts</p>
+                        <p><strong>Recipients:</strong> ${recipientDescription}</p>
                         <p><strong>Message Type:</strong> ${type}</p>
                         <p><strong>Delay:</strong> ${delay}ms between messages</p>
                         <hr>
@@ -1369,15 +2285,15 @@ class WABlastApp {
 
         // Show progress
         // Show start notification
-        this.showInfoNotification('Blast Started', `Sending messages to ${selectedContacts.length} contacts...`);
+        this.showInfoNotification('Blast Started', `Sending messages to ${targetContacts.length} contacts...`);
 
         // Show initial blast progress modal
-        this.showBlastProgressModal(selectedContacts.length);
+        this.showBlastProgressModal(targetContacts.length);
         this.blastStartTime = Date.now(); // Track start time
 
         try {
             // Start progress simulation
-            this.simulateBlastProgress(selectedContacts.length, delay);
+            this.simulateBlastProgress(targetContacts.length, delay);
 
             const response = await fetch('/api/messages/blast', {
                 method: 'POST',
@@ -1385,7 +2301,7 @@ class WABlastApp {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    contacts: selectedContacts,
+                    contacts: targetContacts,
                     message: message,
                     delay: delay
                 })
@@ -1399,7 +2315,7 @@ class WABlastApp {
             if (result.success) {
                 // Show detailed blast completion notification
                 this.showBlastComplete({
-                    total: result.summary.total || selectedContacts.length,
+                    total: result.summary.total || targetContacts.length,
                     successful: result.summary.sent,
                     failed: result.summary.failed,
                     duration: this.calculateBlastDuration()
@@ -1685,7 +2601,319 @@ function formatCurrentNumber() {
     }
 }
 
+// Contact Search Functions
+let currentContactSearchTerm = '';
+let isAdvancedSearchVisible = false;
+
+function searchMainContacts() {
+    const searchInput = document.getElementById('contactSearchInput');
+    const groupFilter = document.getElementById('contactGroupFilter');
+    const selectedOnlyFilter = document.getElementById('searchSelectedOnly');
+    const withGroupsOnlyFilter = document.getElementById('searchWithGroupsOnly');
+    const searchCount = document.getElementById('mainContactSearchCount');
+
+    if (!searchInput || !window.app || !window.app.contacts) return;
+
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    const selectedGroupId = groupFilter ? groupFilter.value : '';
+    const selectedOnly = selectedOnlyFilter ? selectedOnlyFilter.checked : false;
+    const withGroupsOnly = withGroupsOnlyFilter ? withGroupsOnlyFilter.checked : false;
+
+    currentContactSearchTerm = searchTerm;
+
+    let filteredContacts = [...window.app.contacts];
+
+    // Apply text search filter
+    if (searchTerm) {
+        filteredContacts = filteredContacts.filter(contact => {
+            const nameMatch = (contact.name || '').toLowerCase().includes(searchTerm);
+            const numberMatch = (contact.number || '').toLowerCase().includes(searchTerm);
+            const emailMatch = (contact.email || '').toLowerCase().includes(searchTerm);
+            const companyMatch = (contact.company || '').toLowerCase().includes(searchTerm);
+
+            // Search in custom fields
+            let customFieldMatch = false;
+            Object.keys(contact).forEach(key => {
+                if (!['id', 'name', 'number', 'email', 'company', 'selected', 'groups', 'importedAt'].includes(key)) {
+                    const value = contact[key];
+                    if (value && value.toString().toLowerCase().includes(searchTerm)) {
+                        customFieldMatch = true;
+                    }
+                }
+            });
+
+            return nameMatch || numberMatch || emailMatch || companyMatch || customFieldMatch;
+        });
+    }
+
+    // Apply group filter
+    if (selectedGroupId) {
+        filteredContacts = filteredContacts.filter(contact =>
+            contact.groups && contact.groups.some(group => group.id == selectedGroupId)
+        );
+    }
+
+    // Apply selected only filter
+    if (selectedOnly) {
+        filteredContacts = filteredContacts.filter(contact => contact.selected !== false);
+    }
+
+    // Apply with groups only filter
+    if (withGroupsOnly) {
+        filteredContacts = filteredContacts.filter(contact => contact.groups && contact.groups.length > 0);
+    }
+
+    // Update search count
+    if (searchCount) {
+        const totalContacts = window.app.contacts.length;
+        const filteredCount = filteredContacts.length;
+
+        if (searchTerm || selectedGroupId || selectedOnly || withGroupsOnly) {
+            searchCount.textContent = `Showing ${filteredCount} of ${totalContacts} contacts`;
+            searchCount.className = filteredCount === 0 ? 'text-warning' : 'text-info';
+        } else {
+            searchCount.textContent = `${totalContacts} contacts total`;
+            searchCount.className = 'text-muted';
+        }
+    }
+
+    // Display filtered contacts with highlighting
+    displayFilteredContacts(filteredContacts);
+}
+
+function clearMainContactSearch() {
+    const searchInput = document.getElementById('contactSearchInput');
+    const groupFilter = document.getElementById('contactGroupFilter');
+    const selectedOnlyFilter = document.getElementById('searchSelectedOnly');
+    const withGroupsOnlyFilter = document.getElementById('searchWithGroupsOnly');
+    const searchCount = document.getElementById('mainContactSearchCount');
+
+    if (searchInput) searchInput.value = '';
+    if (groupFilter) groupFilter.value = '';
+    if (selectedOnlyFilter) selectedOnlyFilter.checked = false;
+    if (withGroupsOnlyFilter) withGroupsOnlyFilter.checked = false;
+
+    if (searchCount) {
+        const totalContacts = window.app ? window.app.contacts.length : 0;
+        searchCount.textContent = `${totalContacts} contacts total`;
+        searchCount.className = 'text-muted';
+    }
+
+    currentContactSearchTerm = '';
+
+    // Show all contacts
+    if (window.app && window.app.contacts) {
+        window.app.displayContacts(window.app.contacts);
+    }
+}
+
+function displayFilteredContacts(contacts) {
+    const tableBody = document.getElementById('contactsTableBody');
+    const table = document.getElementById('contactsTable');
+
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '';
+
+    if (contacts.length === 0) {
+        const noResultsRow = document.createElement('tr');
+        noResultsRow.innerHTML = `
+            <td colspan="7" class="text-center text-muted py-4">
+                <i class="fas fa-search me-2"></i>
+                No contacts found matching your search criteria.
+                <br>
+                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="clearMainContactSearch()">
+                    <i class="fas fa-times me-1"></i>Clear Search
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(noResultsRow);
+        table.style.display = 'block';
+        return;
+    }
+
+    contacts.forEach((contact, index) => {
+        const row = document.createElement('tr');
+
+        // Highlight search terms
+        const highlightText = (text, term) => {
+            if (!term || !text) return text || '-';
+            const regex = new RegExp(`(${term})`, 'gi');
+            return text.replace(regex, '<mark>$1</mark>');
+        };
+
+        row.innerHTML = `
+            <td>
+                <input type="checkbox" class="form-check-input contact-checkbox"
+                       data-id="${contact.id}" data-index="${index}"
+                       ${contact.selected !== false ? 'checked' : ''}
+                       onchange="window.app.updateBulkActionButtons()">
+            </td>
+            <td>${highlightText(contact.name, currentContactSearchTerm)}</td>
+            <td>
+                <span class="badge bg-secondary">${highlightText(contact.displayNumber || contact.number, currentContactSearchTerm)}</span>
+                <button class="btn btn-sm btn-outline-primary ms-1"
+                        onclick="app.selectNumberForSingle('${contact.number}')"
+                        title="Use for single message">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </td>
+            <td>${highlightText(contact.email, currentContactSearchTerm)}</td>
+            <td>${highlightText(contact.company, currentContactSearchTerm)}</td>
+            <td>
+                ${contact.groups ? contact.groups.map(group =>
+                    `<span class="badge me-1" style="background-color: ${group.color}">${group.name}</span>`
+                ).join('') : '-'}
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-success" onclick="app.showAddToGroupModal(${contact.id})" title="Add to Group">
+                        <i class="fas fa-users"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="app.removeContact(${contact.id})" title="Delete Contact">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+
+    // Add event listeners for checkboxes
+    document.querySelectorAll('.contact-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', async (e) => {
+            const contactId = parseInt(e.target.dataset.id);
+            const selected = e.target.checked;
+
+            try {
+                await fetch(`/api/contacts/${contactId}/select`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ selected })
+                });
+
+                // Update local contact data
+                const contact = window.app.contacts.find(c => c.id === contactId);
+                if (contact) {
+                    contact.selected = selected;
+                }
+
+                window.app.updateSelectedCount();
+                window.app.updateBulkActionButtons();
+            } catch (error) {
+                console.error('Error updating contact selection:', error);
+                // Revert checkbox state on error
+                e.target.checked = !selected;
+            }
+        });
+    });
+
+    table.style.display = 'block';
+}
+
+function selectFilteredContacts() {
+    const searchInput = document.getElementById('contactSearchInput');
+    const groupFilter = document.getElementById('contactGroupFilter');
+    const selectedOnlyFilter = document.getElementById('searchSelectedOnly');
+    const withGroupsOnlyFilter = document.getElementById('searchWithGroupsOnly');
+
+    if (!window.app || !window.app.contacts) return;
+
+    const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const selectedGroupId = groupFilter ? groupFilter.value : '';
+    const selectedOnly = selectedOnlyFilter ? selectedOnlyFilter.checked : false;
+    const withGroupsOnly = withGroupsOnlyFilter ? withGroupsOnlyFilter.checked : false;
+
+    let filteredContacts = [...window.app.contacts];
+
+    // Apply same filters as search
+    if (searchTerm) {
+        filteredContacts = filteredContacts.filter(contact => {
+            const nameMatch = (contact.name || '').toLowerCase().includes(searchTerm);
+            const numberMatch = (contact.number || '').toLowerCase().includes(searchTerm);
+            const emailMatch = (contact.email || '').toLowerCase().includes(searchTerm);
+            const companyMatch = (contact.company || '').toLowerCase().includes(searchTerm);
+
+            let customFieldMatch = false;
+            Object.keys(contact).forEach(key => {
+                if (!['id', 'name', 'number', 'email', 'company', 'selected', 'groups', 'importedAt'].includes(key)) {
+                    const value = contact[key];
+                    if (value && value.toString().toLowerCase().includes(searchTerm)) {
+                        customFieldMatch = true;
+                    }
+                }
+            });
+
+            return nameMatch || numberMatch || emailMatch || companyMatch || customFieldMatch;
+        });
+    }
+
+    if (selectedGroupId) {
+        filteredContacts = filteredContacts.filter(contact =>
+            contact.groups && contact.groups.some(group => group.id == selectedGroupId)
+        );
+    }
+
+    if (selectedOnly) {
+        filteredContacts = filteredContacts.filter(contact => contact.selected !== false);
+    }
+
+    if (withGroupsOnly) {
+        filteredContacts = filteredContacts.filter(contact => contact.groups && contact.groups.length > 0);
+    }
+
+    // Select all filtered contacts
+    filteredContacts.forEach(contact => {
+        contact.selected = true;
+        const checkbox = document.querySelector(`input[data-id="${contact.id}"]`);
+        if (checkbox) checkbox.checked = true;
+    });
+
+    // Update bulk action button
+    window.app.updateBulkActionButtons();
+
+    alert(`Selected ${filteredContacts.length} filtered contacts`);
+}
+
+function toggleAdvancedSearch() {
+    const advancedOptions = document.getElementById('advancedSearchOptions');
+    const toggleButton = document.getElementById('advancedSearchToggle');
+
+    if (!advancedOptions || !toggleButton) return;
+
+    isAdvancedSearchVisible = !isAdvancedSearchVisible;
+
+    if (isAdvancedSearchVisible) {
+        advancedOptions.style.display = 'block';
+        toggleButton.innerHTML = '<i class="fas fa-cog me-1"></i>Hide Advanced';
+        toggleButton.classList.remove('btn-outline-info');
+        toggleButton.classList.add('btn-info', 'text-white');
+    } else {
+        advancedOptions.style.display = 'none';
+        toggleButton.innerHTML = '<i class="fas fa-cog me-1"></i>Advanced';
+        toggleButton.classList.remove('btn-info', 'text-white');
+        toggleButton.classList.add('btn-outline-info');
+    }
+}
+
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new WABlastApp();
+
+    // Initialize advanced search as hidden
+    setTimeout(() => {
+        const advancedOptions = document.getElementById('advancedSearchOptions');
+        if (advancedOptions) {
+            advancedOptions.style.display = 'none';
+        }
+
+        // Initialize search count
+        const searchCount = document.getElementById('mainContactSearchCount');
+        if (searchCount && window.app && window.app.contacts) {
+            searchCount.textContent = `${window.app.contacts.length} contacts total`;
+            searchCount.className = 'text-muted';
+        }
+    }, 1000);
 });

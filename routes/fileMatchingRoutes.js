@@ -20,10 +20,15 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 100 * 1024 * 1024 // 100MB limit for documents
+        fileSize: 200 * 1024 * 1024, // 200MB limit per file
+        files: 200 // Maximum 200 files
+    },
+    fileFilter: (req, file, cb) => {
+        // Allow all file types for documents
+        cb(null, true);
     }
 });
 
@@ -45,29 +50,62 @@ router.get('/documents', async (req, res) => {
 });
 
 // Upload files to documents folder
-router.post('/documents/upload', upload.array('documents', 50), async (req, res) => {
-    try {
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'No files uploaded' });
+router.post('/documents/upload', (req, res) => {
+    // Use upload middleware with error handling
+    upload.array('documents', 200)(req, res, (err) => {
+        if (err) {
+            console.error('Multer error:', err);
+
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({
+                    error: 'File too large. Maximum size is 200MB per file.'
+                });
+            }
+
+            if (err.code === 'LIMIT_FILE_COUNT') {
+                return res.status(400).json({
+                    error: 'Too many files. Maximum is 200 files per upload.'
+                });
+            }
+
+            if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+                return res.status(400).json({
+                    error: 'Unexpected field name. Use "documents" as field name.'
+                });
+            }
+
+            return res.status(500).json({
+                error: `Upload error: ${err.message}`
+            });
         }
 
-        const uploadedFiles = req.files.map(file => ({
-            fileName: file.filename,
-            originalName: file.originalname,
-            size: file.size,
-            path: file.path,
-            mimetype: file.mimetype
-        }));
+        try {
+            if (!req.files || req.files.length === 0) {
+                return res.status(400).json({ error: 'No files uploaded' });
+            }
 
-        res.json({
-            success: true,
-            message: `${uploadedFiles.length} files uploaded successfully`,
-            files: uploadedFiles
-        });
-    } catch (error) {
-        console.error('Error uploading documents:', error);
-        res.status(500).json({ error: error.message });
-    }
+            console.log(`Processing ${req.files.length} uploaded files...`);
+
+            const uploadedFiles = req.files.map(file => ({
+                fileName: file.filename,
+                originalName: file.originalname,
+                size: file.size,
+                path: file.path,
+                mimetype: file.mimetype
+            }));
+
+            console.log(`Successfully processed ${uploadedFiles.length} files`);
+
+            res.json({
+                success: true,
+                message: `${uploadedFiles.length} files uploaded successfully`,
+                files: uploadedFiles
+            });
+        } catch (error) {
+            console.error('Error processing uploaded files:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
 });
 
 // Delete file from documents folder
@@ -192,19 +230,69 @@ router.post('/match', async (req, res) => {
 router.post('/match-stored', async (req, res) => {
     try {
         const contacts = contactStorage.getSelectedContacts();
-        
+
         if (contacts.length === 0) {
             return res.status(400).json({ error: 'No contacts selected' });
         }
 
         const result = await fileMatchingService.matchContactsWithFiles(contacts);
-        
+
         res.json({
             success: true,
             ...result
         });
     } catch (error) {
         console.error('Error matching stored contacts with files:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Validate file matching before sending blast
+router.post('/validate', async (req, res) => {
+    try {
+        const { contacts } = req.body;
+
+        if (!contacts || !Array.isArray(contacts)) {
+            return res.status(400).json({ error: 'Contacts array is required' });
+        }
+
+        if (contacts.length === 0) {
+            return res.status(400).json({ error: 'No contacts provided' });
+        }
+
+        // Perform file matching validation
+        const result = await fileMatchingService.matchContactsWithFiles(contacts);
+
+        // Add detailed validation information
+        const validation = {
+            success: true,
+            matched: result.matched,
+            unmatched: result.unmatched,
+            statistics: {
+                totalContacts: contacts.length,
+                matchedCount: result.matched.length,
+                unmatchedCount: result.unmatched.length,
+                matchingRate: Math.round((result.matched.length / contacts.length) * 100),
+                totalFiles: result.statistics.totalFiles,
+                unusedFiles: result.statistics.unusedFilesCount
+            },
+            canProceed: result.matched.length > 0,
+            warnings: []
+        };
+
+        // Add warnings based on validation results
+        if (result.unmatched.length > 0) {
+            validation.warnings.push(`${result.unmatched.length} contacts will be skipped due to missing files`);
+        }
+
+        if (result.matched.length === 0) {
+            validation.warnings.push('No contacts have matching files - blast cannot proceed');
+        }
+
+        res.json(validation);
+
+    } catch (error) {
+        console.error('Error validating file matching:', error);
         res.status(500).json({ error: error.message });
     }
 });

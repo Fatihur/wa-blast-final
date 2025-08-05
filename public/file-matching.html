@@ -26,26 +26,7 @@
     </nav>
 
     <div class="container mt-4">
-        <!-- Instructions -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="alert alert-info">
-                    <h5><i class="fas fa-info-circle me-2"></i>File Matching Instructions</h5>
-                    <ol class="mb-2">
-                        <li>Upload your documents to the Documents folder</li>
-                        <li>Import contacts with a "fileName" column in your Excel file</li>
-                        <li>The system will match contact's fileName with actual files in Documents folder</li>
-                        <li>Send blast messages with different files for each contact</li>
-                    </ol>
-                    <div class="text-center">
-                        <button type="button" class="btn btn-primary" onclick="activateBlastTab()">
-                            <i class="fas fa-edit me-1"></i>
-                            Show Rich Text Editor
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        
 
         <!-- Tabs -->
         <ul class="nav nav-tabs" id="fileMatchingTabs" role="tablist">
@@ -171,6 +152,34 @@
                             <div class="col-md-6">
                                 <div id="matchingStats" class="text-end">
                                     <!-- Matching statistics will be displayed here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Search Box -->
+                        <div class="row mb-3" id="contactSearchRow" style="display: none;">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="contactSearchInput"
+                                           placeholder="Search contacts by name, number, email, or company..."
+                                           onkeyup="searchContacts()" autocomplete="off">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="clearContactSearch()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <span id="searchResultsCount" class="text-muted me-3"></span>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="searchInFilesOnly" onchange="searchContacts()">
+                                        <label class="form-check-label" for="searchInFilesOnly">
+                                            Search in matched files only
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -551,6 +560,201 @@
                 alert('❌ Could not find blast tab elements. Please refresh the page.');
             }
         };
+
+        // Contact Search Functions
+        let currentSearchTerm = '';
+
+        function searchContacts() {
+            const searchInput = document.getElementById('contactSearchInput');
+            const searchInFilesOnly = document.getElementById('searchInFilesOnly');
+            const searchResultsCount = document.getElementById('searchResultsCount');
+
+            if (!searchInput || !window.originalMatchingResults) return;
+
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            const filesOnlyFilter = searchInFilesOnly ? searchInFilesOnly.checked : false;
+            currentSearchTerm = searchTerm;
+
+            let filteredResults = [...window.originalMatchingResults];
+
+            // Apply search filter
+            if (searchTerm) {
+                filteredResults = filteredResults.filter(item => {
+                    const contact = item.contact;
+                    const matchedFile = item.matchedFile;
+
+                    // Search in contact fields
+                    const nameMatch = (contact.name || '').toLowerCase().includes(searchTerm);
+                    const numberMatch = (contact.number || '').toLowerCase().includes(searchTerm);
+                    const emailMatch = (contact.email || '').toLowerCase().includes(searchTerm);
+                    const companyMatch = (contact.company || '').toLowerCase().includes(searchTerm);
+
+                    // Search in file fields
+                    const fileNameMatch = (contact.fileName || '').toLowerCase().includes(searchTerm);
+                    const matchedFileMatch = matchedFile ? (matchedFile.fileName || '').toLowerCase().includes(searchTerm) : false;
+
+                    return nameMatch || numberMatch || emailMatch || companyMatch || fileNameMatch || matchedFileMatch;
+                });
+            }
+
+            // Apply files-only filter
+            if (filesOnlyFilter) {
+                filteredResults = filteredResults.filter(item => item.matchedFile);
+            }
+
+            // Update search results count
+            if (searchResultsCount) {
+                const totalResults = window.originalMatchingResults.length;
+                const filteredCount = filteredResults.length;
+
+                if (searchTerm || filesOnlyFilter) {
+                    searchResultsCount.textContent = `Showing ${filteredCount} of ${totalResults} contacts`;
+                    searchResultsCount.className = filteredCount === 0 ? 'text-warning' : 'text-info';
+                } else {
+                    searchResultsCount.textContent = `${totalResults} contacts total`;
+                    searchResultsCount.className = 'text-muted';
+                }
+            }
+
+            // Re-render the filtered results
+            displayFilteredMatchingResults(filteredResults);
+        }
+
+        function clearContactSearch() {
+            const searchInput = document.getElementById('contactSearchInput');
+            const searchInFilesOnly = document.getElementById('searchInFilesOnly');
+            const searchResultsCount = document.getElementById('searchResultsCount');
+
+            if (searchInput) searchInput.value = '';
+            if (searchInFilesOnly) searchInFilesOnly.checked = false;
+            if (searchResultsCount) {
+                const totalResults = window.originalMatchingResults ? window.originalMatchingResults.length : 0;
+                searchResultsCount.textContent = `${totalResults} contacts total`;
+                searchResultsCount.className = 'text-muted';
+            }
+
+            currentSearchTerm = '';
+
+            // Show all results
+            if (window.originalMatchingResults) {
+                displayFilteredMatchingResults(window.originalMatchingResults);
+            }
+        }
+
+        function displayFilteredMatchingResults(results) {
+            const matchingResults = document.getElementById('matchingResults');
+            if (!matchingResults) return;
+
+            if (results.length === 0) {
+                matchingResults.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-search me-2"></i>
+                        No contacts found matching your search criteria.
+                        <button class="btn btn-sm btn-outline-warning ms-2" onclick="clearContactSearch()">
+                            <i class="fas fa-times me-1"></i>Clear Search
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // Generate statistics for filtered results
+            const matchedCount = results.filter(item => item.matchedFile).length;
+            const unmatchedCount = results.length - matchedCount;
+
+            const statsHtml = `
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h4>${results.length}</h4>
+                                <small>Total Contacts</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h4>${matchedCount}</h4>
+                                <small>Matched</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <h4>${unmatchedCount}</h4>
+                                <small>Unmatched</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h4>${Math.round((matchedCount / results.length) * 100)}%</h4>
+                                <small>Match Rate</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const tableHtml = `
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Contact Name</th>
+                                <th>Number</th>
+                                <th>Email</th>
+                                <th>Company</th>
+                                <th>Expected File</th>
+                                <th>Matched File</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${results.map(item => {
+                                const contact = item.contact;
+                                const matchedFile = item.matchedFile;
+                                const searchTerm = currentSearchTerm;
+
+                                // Highlight search terms
+                                const highlightText = (text, term) => {
+                                    if (!term || !text) return text || '-';
+                                    const regex = new RegExp(`(${term})`, 'gi');
+                                    return text.replace(regex, '<mark>$1</mark>');
+                                };
+
+                                return `
+                                    <tr>
+                                        <td>${highlightText(contact.name, searchTerm)}</td>
+                                        <td><span class="badge bg-secondary">${highlightText(contact.number, searchTerm)}</span></td>
+                                        <td>${highlightText(contact.email, searchTerm)}</td>
+                                        <td>${highlightText(contact.company, searchTerm)}</td>
+                                        <td><code>${highlightText(contact.fileName || 'Not specified', searchTerm)}</code></td>
+                                        <td>
+                                            ${matchedFile ?
+                                                `<span class="badge bg-success">${highlightText(matchedFile.fileName, searchTerm)}</span>` :
+                                                '<span class="text-muted">No match</span>'
+                                            }
+                                        </td>
+                                        <td>
+                                            ${matchedFile ?
+                                                '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Matched</span>' :
+                                                '<span class="badge bg-warning"><i class="fas fa-exclamation-triangle me-1"></i>No File</span>'
+                                            }
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            matchingResults.innerHTML = statsHtml + tableHtml;
+        }
     </script>
 </body>
 </html>

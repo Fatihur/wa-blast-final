@@ -248,13 +248,38 @@ router.post('/format-number', (req, res) => {
 // Get stored contacts
 router.get('/', async (req, res) => {
     try {
-        const { search, selected } = req.query;
+        const { search, selected, groupId, includeGroups } = req.query;
         const filters = {};
 
         if (search) filters.search = search;
         if (selected !== undefined) filters.selected = selected === 'true';
+        if (groupId) filters.groupId = parseFloat(groupId);
 
-        const contacts = contactStorage.getContacts(filters);
+        let contacts;
+        if (includeGroups === 'true') {
+            contacts = contactStorage.getContactsWithGroups();
+            // Apply filters manually for contacts with groups
+            if (filters.selected !== undefined) {
+                contacts = contacts.filter(c => c.selected === filters.selected);
+            }
+            if (filters.search) {
+                const search = filters.search.toLowerCase();
+                contacts = contacts.filter(c =>
+                    (c.name || '').toLowerCase().includes(search) ||
+                    (c.number || '').includes(search) ||
+                    (c.email || '').toLowerCase().includes(search) ||
+                    (c.company || '').toLowerCase().includes(search)
+                );
+            }
+            if (filters.groupId) {
+                contacts = contacts.filter(c =>
+                    c.groups.some(g => g.id === filters.groupId)
+                );
+            }
+        } else {
+            contacts = contactStorage.getContacts(filters);
+        }
+
         const headers = contactStorage.getHeaders();
         const statistics = contactStorage.getStatistics();
 

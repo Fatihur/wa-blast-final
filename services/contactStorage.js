@@ -139,7 +139,7 @@ class ContactStorage {
 
         if (filters.search) {
             const search = filters.search.toLowerCase();
-            filtered = filtered.filter(c => 
+            filtered = filtered.filter(c =>
                 (c.name || '').toLowerCase().includes(search) ||
                 (c.number || '').includes(search) ||
                 (c.email || '').toLowerCase().includes(search) ||
@@ -147,7 +147,22 @@ class ContactStorage {
             );
         }
 
+        // Apply group filter
+        if (filters.groupId) {
+            const groupStorage = require('./groupStorage');
+            const groupContactIds = groupStorage.getContactsInGroup(filters.groupId).map(m => m.contactId);
+            filtered = filtered.filter(c => groupContactIds.includes(c.id));
+        }
+
         return filtered;
+    }
+
+    getContactsWithGroups() {
+        const groupStorage = require('./groupStorage');
+        return this.contacts.map(contact => ({
+            ...contact,
+            groups: groupStorage.getGroupsForContact(contact.id)
+        }));
     }
 
     getHeaders() {

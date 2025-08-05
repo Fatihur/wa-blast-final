@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA Blast - cPanel Setup</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .setup-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .step-card {
+            border-left: 4px solid #007bff;
+            margin-bottom: 20px;
+        }
+        .step-number {
+            background: #007bff;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .status-check {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .status-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="setup-container">
+        <div class="text-center mb-5">
+            <h1 class="display-4">
+                <i class="fas fa-cog text-primary"></i>
+                WA Blast Setup
+            </h1>
+            <p class="lead">cPanel Deployment Configuration</p>
+        </div>
+
+        <!-- System Check -->
+        <div class="card step-card">
+            <div class="card-header">
+                <div class="d-flex align-items-center">
+                    <div class="step-number me-3">1</div>
+                    <h5 class="mb-0">System Requirements Check</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="systemCheck">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Checking...</span>
+                        </div>
+                        <p class="mt-2">Checking system requirements...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environment Configuration -->
+        <div class="card step-card">
+            <div class="card-header">
+                <div class="d-flex align-items-center">
+                    <div class="step-number me-3">2</div>
+                    <h5 class="mb-0">Environment Configuration</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="envForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Session Name</label>
+                            <input type="text" class="form-control" id="sessionName" value="wa-blast-session">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Upload Path</label>
+                            <input type="text" class="form-control" id="uploadPath" value="./uploads">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Max File Size</label>
+                            <input type="text" class="form-control" id="maxFileSize" value="50MB">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Environment</label>
+                            <select class="form-control" id="nodeEnv">
+                                <option value="production">Production</option>
+                                <option value="development">Development</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        Save Configuration
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- cPanel Instructions -->
+        <div class="card step-card">
+            <div class="card-header">
+                <div class="d-flex align-items-center">
+                    <div class="step-number me-3">3</div>
+                    <h5 class="mb-0">cPanel Node.js App Setup</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Follow these steps in your cPanel:</h6>
+                    <ol>
+                        <li>Go to <strong>"Node.js Apps"</strong> in cPanel</li>
+                        <li>Click <strong>"Create Application"</strong></li>
+                        <li>Configure the application:
+                            <div class="code-block">
+                                Node.js Version: <strong>18.x</strong> (or latest)<br>
+                                Application Mode: <strong>Production</strong><br>
+                                Application Root: <strong id="appRoot">wa-blast</strong><br>
+                                Application URL: <strong>your-subdomain</strong><br>
+                                Application Startup File: <strong>app.js</strong>
+                            </div>
+                        </li>
+                        <li>Click <strong>"Create"</strong></li>
+                        <li>Install dependencies: <code>npm install</code></li>
+                        <li>Start the application</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Permissions -->
+        <div class="card step-card">
+            <div class="card-header">
+                <div class="d-flex align-items-center">
+                    <div class="step-number me-3">4</div>
+                    <h5 class="mb-0">File Permissions</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <p>Set the following permissions in cPanel File Manager:</p>
+                <div class="code-block">
+                    uploads/ → 755<br>
+                    sessions/ → 755<br>
+                    logs/ → 755<br>
+                    .env → 644<br>
+                    public/.htaccess → 644
+                </div>
+                <button class="btn btn-outline-primary" onclick="checkPermissions()">
+                    <i class="fas fa-check me-2"></i>
+                    Check Permissions
+                </button>
+            </div>
+        </div>
+
+        <!-- Test Connection -->
+        <div class="card step-card">
+            <div class="card-header">
+                <div class="d-flex align-items-center">
+                    <div class="step-number me-3">5</div>
+                    <h5 class="mb-0">Test Application</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <p>Test if your application is working correctly:</p>
+                <div class="d-grid gap-2 d-md-flex">
+                    <button class="btn btn-success" onclick="testApp()">
+                        <i class="fas fa-play me-2"></i>
+                        Test Application
+                    </button>
+                    <button class="btn btn-info" onclick="testWhatsApp()">
+                        <i class="fab fa-whatsapp me-2"></i>
+                        Test WhatsApp
+                    </button>
+                </div>
+                <div id="testResults" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Success -->
+        <div class="card step-card" id="successCard" style="display: none;">
+            <div class="card-header bg-success text-white">
+                <div class="d-flex align-items-center">
+                    <div class="step-number me-3" style="background: white; color: #28a745;">✓</div>
+                    <h5 class="mb-0">Setup Complete!</h5>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-check-circle me-2"></i>Congratulations!</h6>
+                    <p>Your WA Blast application is now ready to use.</p>
+                    <div class="d-grid gap-2 d-md-flex">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>
+                            Go to Main App
+                        </a>
+                        <a href="/anti-ban-dashboard.html" class="btn btn-outline-primary">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Anti-Ban Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="setup.js"></script>
+</body>
+</html>

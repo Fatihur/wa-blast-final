@@ -439,19 +439,51 @@ router.post('/blast-with-files', async (req, res) => {
         // Match contacts with files
         const matchingResult = await fileMatchingService.matchContactsWithFiles(contacts);
 
+        // Log skipped contacts
+        for (const unmatchedContact of matchingResult.unmatched) {
+            await logger.message(`Contact skipped - No matching file found`, {
+                contact: unmatchedContact.name || unmatchedContact.nama || 'Unknown',
+                phone: unmatchedContact.phone || unmatchedContact.nomor || 'Unknown',
+                fileName: unmatchedContact.fileName || unmatchedContact.namaFile || 'Not specified',
+                reason: unmatchedContact.reason || 'No matching file found',
+                status: 'skipped'
+            });
+        }
+
         if (matchingResult.matched.length === 0) {
+            await logger.blast(`File matching blast campaign failed - No contacts matched`, {
+                totalContacts: contacts.length,
+                unmatchedCount: matchingResult.unmatched.length
+            });
+
             return res.status(400).json({
                 error: 'No contacts could be matched with files',
                 details: matchingResult
             });
         }
 
+        await logger.blast(`File matching validation completed`, {
+            totalContacts: contacts.length,
+            matchedCount: matchingResult.matched.length,
+            unmatchedCount: matchingResult.unmatched.length,
+            matchingRate: `${Math.round((matchingResult.matched.length / contacts.length) * 100)}%`
+        });
+
         const results = [];
         const total = matchingResult.matched.length;
         let sent = 0;
         let failed = 0;
 
+        // Initialize stop flag
+        global.blastStopped = false;
+
         for (let i = 0; i < matchingResult.matched.length; i++) {
+            // Check if blast should be stopped
+            if (global.blastStopped) {
+                await logger.info(`Blast stopped by user at contact ${i + 1}/${total}`);
+                break;
+            }
+
             const contact = matchingResult.matched[i];
             let success = false;
             let lastError = null;
@@ -548,7 +580,12 @@ router.post('/blast-with-files', async (req, res) => {
                 sent,
                 failed,
                 current: i + 1,
-                percentage: Math.round(((i + 1) / total) * 100)
+                percentage: Math.round(((i + 1) / total) * 100),
+                currentContact: {
+                    name: contact.name || contact.nama || 'Unknown',
+                    phone: contact.number || contact.nomor || 'No phone',
+                    success: success
+                }
             });
 
             // Add delay between messages
@@ -685,6 +722,31 @@ router.post('/anti-ban/configure', async (req, res) => {
         }
     } catch (error) {
         await logger.error('Error configuring anti-ban', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Stop blast process
+router.post('/stop-blast', async (req, res) => {
+    try {
+        // Set global flag to stop blast
+        global.blastStopped = true;
+
+        await logger.info('Blast stop requested by user');
+
+        // Emit stop signal to all connected clients
+        req.app.get('io')?.emit('blast-stopped', {
+            message: 'Blast process stopped by user',
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({
+            success: true,
+            message: 'Blast stop signal sent'
+        });
+
+    } catch (error) {
+        await logger.error('Error stopping blast', error);
         res.status(500).json({ error: error.message });
     }
 });

@@ -79,6 +79,27 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Build files
+dist/
+build/
+out/
+
+# Electron build files
+dist/
+out/
+
+# Backup files
+*.backup
+*.bak
+sessions-backup-*.tar.gz
+uploads-backup-*.tar.gz
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
 *~
 
 # Temporary files
