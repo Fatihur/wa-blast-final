@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Contact Search</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Test Contact Search Feature</h1>
+        
+        <!-- Search Box -->
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="contactSearchInput" class="form-label">Search Contacts</label>
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="contactSearchInput" 
+                           placeholder="Search by name, number, email, or company..." 
+                           onkeyup="searchMainContacts()" autocomplete="off">
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearMainContactSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="form-text">
+                    <span id="mainContactSearchCount" class="text-muted">Loading contacts...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Buttons -->
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <button class="btn btn-primary" onclick="loadTestContacts()">Load Test Contacts</button>
+                <button class="btn btn-success" onclick="testSearch()">Test Search Function</button>
+                <button class="btn btn-info" onclick="showSearchStatus()">Show Search Status</button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="contactsTable" style="display: none;">
+            <h5>Test Contacts</h5>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Number</th>
+                            <th>Email</th>
+                            <th>Company</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contactsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock app object for testing
+        window.app = {
+            contacts: [
+                {
+                    id: 1,
+                    name: 'ALVIN HOSTIADI SAPUTRA',
+                    number: '+62 818-0926-2012',
+                    email: 'alvin@electrician.com',
+                    company: 'ELECTRICIAN',
+                    selected: true
+                },
+                {
+                    id: 2,
+                    name: 'RAHMAT JAELANI',
+                    number: '+62 852-1546-7924',
+                    email: 'rahmat@electrician.com',
+                    company: 'ELECTRICIAN',
+                    selected: true
+                },
+                {
+                    id: 3,
+                    name: 'BUDI SANTOSO',
+                    number: '+62 856-1234-5678',
+                    email: 'budi@plumbing.com',
+                    company: 'PLUMBING SERVICES',
+                    selected: true
+                }
+            ]
+        };
+
+        function loadTestContacts() {
+            const searchCount = document.getElementById('mainContactSearchCount');
+            searchCount.textContent = `${window.app.contacts.length} contacts total`;
+            searchCount.className = 'text-muted';
+            
+            displayFilteredContacts(window.app.contacts);
+            alert('Test contacts loaded!');
+        }
+
+        function testSearch() {
+            const searchInput = document.getElementById('contactSearchInput');
+            searchInput.value = 'ELECTRICIAN';
+            searchMainContacts();
+            alert('Search test completed! Check results.');
+        }
+
+        function showSearchStatus() {
+            const searchInput = document.getElementById('contactSearchInput');
+            const searchCount = document.getElementById('mainContactSearchCount');
+            
+            alert(`Search Input: "${searchInput.value}"\nSearch Count: "${searchCount.textContent}"\nContacts: ${window.app.contacts.length}`);
+        }
+    </script>
+    
+    <!-- Include the search functions from app.js -->
+    <script src="app.js"></script>
+</body>
+</html>
