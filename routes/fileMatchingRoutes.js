@@ -247,6 +247,45 @@ router.post('/match-stored', async (req, res) => {
     }
 });
 
+// Test file matching functionality
+router.post('/test', async (req, res) => {
+    try {
+        const { contacts } = req.body;
+
+        if (!contacts || !Array.isArray(contacts)) {
+            return res.status(400).json({ error: 'Contacts array is required' });
+        }
+
+        console.log('Testing file matching with contacts:', contacts.length);
+
+        // Test file matching
+        const result = await fileMatchingService.matchContactsWithFiles(contacts);
+
+        // Add detailed validation info
+        const detailedResults = {
+            ...result,
+            documentsFolder: fileMatchingService.documentsFolder,
+            availableFiles: await fileMatchingService.scanDocumentsFolder(),
+            testResults: result.matched.map(contact => ({
+                name: contact.name,
+                fileName: contact.matchedFile.fileName,
+                filePath: contact.matchedFile.fullPath,
+                fileExists: require('fs-extra').pathExistsSync(contact.matchedFile.fullPath),
+                fileSize: contact.matchedFile.size,
+                fileType: contact.matchedFile.type
+            }))
+        };
+
+        res.json({
+            success: true,
+            ...detailedResults
+        });
+    } catch (error) {
+        console.error('Error testing file matching:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Validate file matching before sending blast
 router.post('/validate', async (req, res) => {
     try {

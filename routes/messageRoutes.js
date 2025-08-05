@@ -437,11 +437,25 @@ router.post('/blast-with-files', async (req, res) => {
         }
 
         // Match contacts with files
+        await logger.blast(`Starting file matching process`, {
+            totalContacts: contacts.length,
+            sampleContact: contacts[0] ? {
+                name: contacts[0].name || contacts[0].nama,
+                fileName: contacts[0].fileName || contacts[0].namaFile || contacts[0].nama_file || contacts[0].file
+            } : null
+        });
+
         const matchingResult = await fileMatchingService.matchContactsWithFiles(contacts);
+
+        await logger.blast(`File matching completed`, {
+            matched: matchingResult.matched.length,
+            unmatched: matchingResult.unmatched.length,
+            matchingRate: `${Math.round((matchingResult.matched.length / contacts.length) * 100)}%`
+        });
 
         // Log skipped contacts
         for (const unmatchedContact of matchingResult.unmatched) {
-            await logger.message(`Contact skipped - No matching file found`, {
+            await logger.info(`Contact skipped - No matching file found`, {
                 contact: unmatchedContact.name || unmatchedContact.nama || 'Unknown',
                 phone: unmatchedContact.phone || unmatchedContact.nomor || 'Unknown',
                 fileName: unmatchedContact.fileName || unmatchedContact.namaFile || 'Not specified',
@@ -488,6 +502,15 @@ router.post('/blast-with-files', async (req, res) => {
             let success = false;
             let lastError = null;
 
+            // Log contact processing start
+            await logger.blast(`Processing contact ${i + 1}/${total}`, {
+                contact: contact.name || contact.nama || 'Unknown',
+                phone: contact.number || contact.nomor,
+                fileName: contact.matchedFile?.fileName,
+                fileType: contact.matchedFile?.type,
+                fileSize: contact.matchedFile?.size ? `${Math.round(contact.matchedFile.size / 1024)}KB` : 'Unknown'
+            });
+
             // Retry mechanism
             for (let attempt = 1; attempt <= retryAttempts && !success; attempt++) {
                 try {
@@ -497,10 +520,34 @@ router.post('/blast-with-files', async (req, res) => {
                     // Format rich text
                     personalizedMessage = messageUtils.formatRichText(personalizedMessage);
 
+                    // Validate file exists before reading
+                    if (!await fs.pathExists(contact.matchedFile.fullPath)) {
+                        throw new Error(`File not found: ${contact.matchedFile.fileName}`);
+                    }
+
+                    // Read file with error handling
+                    let fileBuffer;
+                    try {
+                        fileBuffer = await fs.readFile(contact.matchedFile.fullPath);
+
+                        // Validate file buffer
+                        if (!fileBuffer || fileBuffer.length === 0) {
+                            throw new Error(`File is empty or corrupted: ${contact.matchedFile.fileName}`);
+                        }
+
+                        // Check minimum file size for WhatsApp
+                        if (fileBuffer.length < 10) {
+                            throw new Error(`File too small (${fileBuffer.length} bytes): ${contact.matchedFile.fileName}`);
+                        }
+
+                    } catch (fileError) {
+                        throw new Error(`Failed to read file ${contact.matchedFile.fileName}: ${fileError.message}`);
+                    }
+
                     // Prepare file options
                     const options = {
                         type: contact.matchedFile.type,
-                        media: await fs.readFile(contact.matchedFile.fullPath),
+                        media: fileBuffer,
                         fileName: contact.matchedFile.fileName
                     };
 

@@ -34,9 +34,8 @@ Pencarian dapat dilakukan pada field berikut:
 - Format: "Showing X of Y contacts"
 - Indikator warna berdasarkan hasil
 
-### 6. **⚡ Bulk Actions pada Hasil Filter**
-- **Select Filtered** - Pilih semua kontak hasil filter
-- **Select All/None** - Pilih semua atau tidak ada
+### 6. **⚡ Bulk Actions**
+- **Select All/None** - Pilih semua atau tidak ada kontak
 - **Add to Group** - Tambahkan kontak terpilih ke grup
 
 ## 🚀 Cara Menggunakan
@@ -62,9 +61,8 @@ Pencarian dapat dilakukan pada field berikut:
 3. Centang **"Show contacts with groups only"** untuk melihat kontak yang memiliki grup
 
 ### Langkah 5: Bulk Actions
-1. Gunakan **"Select Filtered"** untuk memilih semua hasil pencarian
-2. Klik **"Add Selected to Group"** untuk menambahkan ke grup
-3. Gunakan **"Select All"** atau **"Select None"** untuk kontrol cepat
+1. Klik **"Add Selected to Group"** untuk menambahkan kontak terpilih ke grup
+2. Gunakan **"Select All"** atau **"Select None"** untuk kontrol cepat
 
 ## 📊 Contoh Penggunaan
 
@@ -109,7 +107,6 @@ Hasil: Menampilkan kontak yang memiliki "Skill 3" di field manapun
 - **Toggle Button**: Tampilkan/sembunyikan opsi advanced
 
 ### Bulk Actions
-- **Select Filtered**: Pilih semua hasil filter
 - **Select All/None**: Kontrol seleksi cepat
 - **Add to Group**: Tambahkan kontak terpilih ke grup
 
@@ -119,7 +116,6 @@ Hasil: Menampilkan kontak yang memiliki "Skill 3" di field manapun
 - `searchMainContacts()` - Fungsi utama pencarian
 - `clearMainContactSearch()` - Membersihkan pencarian
 - `displayFilteredContacts()` - Menampilkan hasil filter
-- `selectFilteredContacts()` - Pilih semua hasil filter
 - `toggleAdvancedSearch()` - Toggle opsi advanced
 
 ### Search Algorithm
@@ -162,7 +158,7 @@ Hasil: Menampilkan kontak yang memiliki "Skill 3" di field manapun
 - Manfaatkan advanced options untuk filter lebih detail
 
 ### 2. **Bulk Operations**
-- Gunakan "Select Filtered" untuk operasi massal pada hasil pencarian
+- Gunakan "Select All/None" untuk kontrol seleksi cepat
 - Kombinasikan dengan filter grup untuk manajemen kontak yang efisien
 
 ### 3. **Troubleshooting**

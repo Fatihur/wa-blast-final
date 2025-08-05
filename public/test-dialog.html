@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Dialog - SweetAlert2</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="alert alert-info">
+            <h4>🔧 Dialog Test Tool</h4>
+            <p>This tool tests SweetAlert2 dialog functionality specifically.</p>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Test Actions</h5>
+                <button class="btn btn-primary mb-2" onclick="testBasicDialog()">Test Basic Dialog</button><br>
+                <button class="btn btn-success mb-2" onclick="testConfirmDialog()">Test Confirm Dialog</button><br>
+                <button class="btn btn-warning mb-2" onclick="testFileMatchingDialog()">Test File Matching Dialog</button><br>
+                <button class="btn btn-info mb-2" onclick="checkSweetAlert()">Check SweetAlert2</button><br>
+                <button class="btn btn-secondary mb-2" onclick="clearResults()">Clear Results</button>
+            </div>
+            <div class="col-md-6">
+                <h5>Test Results</h5>
+                <div id="testResults" class="alert alert-secondary" style="height: 400px; overflow-y: auto;">
+                    <p>Click buttons to run tests...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            const timestamp = new Date().toLocaleTimeString();
+            const colorClass = type === 'error' ? 'text-danger' : type === 'success' ? 'text-success' : type === 'warning' ? 'text-warning' : 'text-info';
+            results.innerHTML += `<div class="${colorClass}"><strong>[${timestamp}]</strong> ${message}</div>`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '<p>Results cleared...</p>';
+        }
+
+        function checkSweetAlert() {
+            log('🔍 Checking SweetAlert2...', 'info');
+            log(`Swal available: ${typeof Swal !== 'undefined'}`, typeof Swal !== 'undefined' ? 'success' : 'error');
+            log(`Swal.fire available: ${typeof Swal?.fire === 'function'}`, typeof Swal?.fire === 'function' ? 'success' : 'error');
+            
+            if (typeof Swal !== 'undefined') {
+                log(`SweetAlert2 version: ${Swal.version || 'Unknown'}`, 'info');
+            }
+        }
+
+        async function testBasicDialog() {
+            log('🔔 Testing basic SweetAlert2 dialog...', 'info');
+            
+            if (typeof Swal === 'undefined') {
+                log('❌ SweetAlert2 not available!', 'error');
+                return;
+            }
+            
+            try {
+                const result = await Swal.fire({
+                    title: 'Basic Test',
+                    text: 'This is a basic SweetAlert2 test',
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
+                
+                log('✅ Basic dialog test successful', 'success');
+                log(`Result: ${JSON.stringify(result)}`, 'info');
+            } catch (error) {
+                log(`❌ Basic dialog test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConfirmDialog() {
+            log('🔔 Testing confirm dialog...', 'info');
+            
+            if (typeof Swal === 'undefined') {
+                log('❌ SweetAlert2 not available!', 'error');
+                return;
+            }
+            
+            try {
+                const result = await Swal.fire({
+                    title: 'Confirm Test',
+                    text: 'Do you want to proceed with this test?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, proceed',
+                    cancelButtonText: 'Cancel'
+                });
+                
+                log('✅ Confirm dialog test successful', 'success');
+                log(`User ${result.isConfirmed ? 'confirmed' : 'cancelled'}`, result.isConfirmed ? 'success' : 'warning');
+            } catch (error) {
+                log(`❌ Confirm dialog test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFileMatchingDialog() {
+            log('🔔 Testing file matching dialog...', 'info');
+            
+            if (typeof Swal === 'undefined') {
+                log('❌ SweetAlert2 not available!', 'error');
+                return;
+            }
+            
+            // Create mock data
+            const matched = [
+                { name: 'Test User 1', number: '628123456789', matchedFile: { fileName: 'test1.pdf' } },
+                { name: 'Test User 2', number: '628987654321', matchedFile: { fileName: 'test2.docx' } }
+            ];
+            
+            const unmatched = [
+                { name: 'Test User 3', number: '628111222333', reason: 'File not found: test3.pdf' }
+            ];
+            
+            // Create unmatched contacts list HTML
+            let unmatchedListHtml = '';
+            if (unmatched.length > 0) {
+                unmatchedListHtml = `
+                    <div class="mt-3">
+                        <h6 class="text-warning">⚠️ Contacts that will be SKIPPED:</h6>
+                        <div class="alert alert-warning" style="max-height: 200px; overflow-y: auto;">
+                            <ul class="mb-0">
+                                ${unmatched.map(contact => `
+                                    <li><strong>${contact.name || 'Unknown'}</strong>
+                                        (${contact.number || 'No phone'}) -
+                                        <em>${contact.reason || 'No matching file'}</em>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const html = `
+                <div class="file-matching-confirmation">
+                    <div class="text-center mb-3">
+                        <i class="fas fa-file-check fa-3x text-primary"></i>
+                        <h4 class="mt-2">File Matching Validation</h4>
+                    </div>
+
+                    <div class="row text-center mb-3">
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-body">
+                                    <h5 class="text-success">${matched.length}</h5>
+                                    <small>Contacts with matching files<br><strong>WILL RECEIVE MESSAGES</strong></small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-warning">
+                                <div class="card-body">
+                                    <h5 class="text-warning">${unmatched.length}</h5>
+                                    <small>Contacts without matching files<br><strong>WILL BE SKIPPED</strong></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${unmatchedListHtml}
+
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Only contacts with matching files will receive messages.</strong>
+                        Skipped contacts will be logged for your review.
+                    </div>
+                </div>
+            `;
+            
+            try {
+                const result = await Swal.fire({
+                    title: 'Confirm File Matching Blast',
+                    html: html,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: matched.length > 0 ? '#28a745' : '#6c757d',
+                    cancelButtonColor: '#dc3545',
+                    confirmButtonText: `Send to ${matched.length} contacts`,
+                    cancelButtonText: 'Cancel',
+                    width: '600px',
+                    customClass: {
+                        popup: 'file-matching-popup'
+                    }
+                });
+                
+                log('✅ File matching dialog test successful', 'success');
+                log(`User ${result.isConfirmed ? 'confirmed' : 'cancelled'} sending to ${matched.length} contacts`, result.isConfirmed ? 'success' : 'warning');
+            } catch (error) {
+                log(`❌ File matching dialog test failed: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+
+        // Auto-run checks on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            log('🚀 Dialog Test Tool loaded', 'info');
+            setTimeout(() => {
+                checkSweetAlert();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

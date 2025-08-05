@@ -207,6 +207,19 @@ class WhatsAppService {
                     throw new Error('Image file is empty or invalid');
                 }
 
+                // Check minimum file size
+                if (options.media.length < 100) {
+                    throw new Error('Image file is too small (minimum 100 bytes required)');
+                }
+
+                // Check maximum file size for images (WhatsApp limit is ~16MB for images)
+                if (options.media.length > 16 * 1024 * 1024) {
+                    throw new Error(`Image file is too large (${Math.round(options.media.length / 1024 / 1024)}MB). Maximum is 16MB.`);
+                }
+
+                const fileName = options.fileName || 'image';
+                await logger.whatsapp(`Sending image: ${fileName} (${Math.round(options.media.length / 1024)}KB)`);
+
                 result = await this.sock.sendMessage(jid, {
                     image: options.media,
                     caption: message
@@ -222,11 +235,21 @@ class WhatsAppService {
                     throw new Error('Document file is too small (minimum 10 bytes required)');
                 }
 
+                // Check maximum file size (WhatsApp limit is ~100MB)
+                if (options.media.length > 100 * 1024 * 1024) {
+                    throw new Error(`Document file is too large (${Math.round(options.media.length / 1024 / 1024)}MB). Maximum is 100MB.`);
+                }
+
+                const fileName = options.fileName || 'document';
+                const mimeType = this.getMimeType(fileName);
+
+                await logger.whatsapp(`Sending document: ${fileName} (${Math.round(options.media.length / 1024)}KB, ${mimeType})`);
+
                 result = await this.sock.sendMessage(jid, {
                     document: options.media,
-                    fileName: options.fileName || 'document',
+                    fileName: fileName,
                     caption: message,
-                    mimetype: this.getMimeType(options.fileName || 'document')
+                    mimetype: mimeType
                 });
             } else {
                 result = await this.sock.sendMessage(jid, { text: message });

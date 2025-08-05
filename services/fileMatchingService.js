@@ -4,8 +4,8 @@ const logger = require('../utils/logger');
 
 class FileMatchingService {
     constructor() {
-        this.documentsFolder = './documents';
-        this.supportedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.jpg', '.jpeg', '.png', '.gif'];
+        this.documentsFolder = path.resolve('./documents');
+        this.supportedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
         this.init();
     }
 
@@ -78,23 +78,34 @@ class FileMatchingService {
 
                 // Try to find matching file
                 const matchedFile = this.findMatchingFile(fileName, availableFiles);
-                
-                if (matchedFile) {
-                    matchedContacts.push({
-                        ...contact,
-                        matchedFile: {
-                            fileName: matchedFile.fileName,
-                            fullPath: matchedFile.fullPath,
-                            extension: matchedFile.extension,
-                            size: matchedFile.size,
-                            type: this.getFileType(matchedFile.extension)
-                        }
-                    });
 
-                    // Remove from unused files
-                    const index = unusedFiles.findIndex(f => f.fileName === matchedFile.fileName);
-                    if (index > -1) {
-                        unusedFiles.splice(index, 1);
+                if (matchedFile) {
+                    // Validate the matched file
+                    const validation = await this.validateFile(matchedFile.fullPath);
+
+                    if (validation.valid) {
+                        matchedContacts.push({
+                            ...contact,
+                            matchedFile: {
+                                fileName: matchedFile.fileName,
+                                fullPath: matchedFile.fullPath,
+                                extension: matchedFile.extension,
+                                size: matchedFile.size,
+                                type: this.getFileType(matchedFile.extension),
+                                validated: true
+                            }
+                        });
+
+                        // Remove from unused files
+                        const index = unusedFiles.findIndex(f => f.fileName === matchedFile.fileName);
+                        if (index > -1) {
+                            unusedFiles.splice(index, 1);
+                        }
+                    } else {
+                        unmatchedContacts.push({
+                            ...contact,
+                            reason: `File "${fileName}" validation failed: ${validation.error}`
+                        });
                     }
                 } else {
                     unmatchedContacts.push({
@@ -162,6 +173,50 @@ class FileMatchingService {
             return 'document';
         } else {
             return 'document'; // Default to document for unknown types
+        }
+    }
+
+    /**
+     * Validate file exists and is readable
+     */
+    async validateFile(filePath) {
+        try {
+            // Check if file exists
+            if (!await fs.pathExists(filePath)) {
+                throw new Error(`File not found: ${filePath}`);
+            }
+
+            // Check if file is readable
+            await fs.access(filePath, fs.constants.R_OK);
+
+            // Get file stats
+            const stats = await fs.stat(filePath);
+
+            // Check if it's actually a file
+            if (!stats.isFile()) {
+                throw new Error(`Path is not a file: ${filePath}`);
+            }
+
+            // Check file size (minimum 1 byte, maximum 100MB)
+            if (stats.size === 0) {
+                throw new Error(`File is empty: ${filePath}`);
+            }
+
+            if (stats.size > 100 * 1024 * 1024) { // 100MB limit
+                throw new Error(`File too large (${Math.round(stats.size / 1024 / 1024)}MB): ${filePath}`);
+            }
+
+            return {
+                valid: true,
+                size: stats.size,
+                lastModified: stats.mtime
+            };
+        } catch (error) {
+            await logger.error(`File validation failed for ${filePath}`, error);
+            return {
+                valid: false,
+                error: error.message
+            };
         }
     }
 

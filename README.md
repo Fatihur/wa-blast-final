@@ -99,7 +99,6 @@ A powerful WhatsApp blast messaging application built with Baileys, Express.js, 
 - **Advanced options** - Toggle additional filter options
 
 **⚡ Bulk Actions:**
-- **Select Filtered** - Select all contacts matching current search/filter
 - **Select All/None** - Quick selection controls
 - **Add to Group** - Add selected contacts to groups
 

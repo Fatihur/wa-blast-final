@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Matching</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="alert alert-info">
+            <h4>🔧 File Matching Test Tool</h4>
+            <p>This tool helps test and debug the file matching functionality.</p>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Test Actions</h5>
+                <button class="btn btn-primary mb-2" onclick="testDocumentsFolder()">Test Documents Folder</button><br>
+                <button class="btn btn-success mb-2" onclick="testFileMatching()">Test File Matching</button><br>
+                <button class="btn btn-warning mb-2" onclick="testStoredContacts()">Test Stored Contacts</button><br>
+                <button class="btn btn-info mb-2" onclick="testBlastValidation()">Test Blast Validation</button><br>
+                <button class="btn btn-secondary mb-2" onclick="clearResults()">Clear Results</button>
+            </div>
+            <div class="col-md-6">
+                <h5>Test Results</h5>
+                <div id="testResults" class="alert alert-secondary" style="height: 400px; overflow-y: auto;">
+                    <p>Click buttons to run tests...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <h5>Manual Test Data</h5>
+                <textarea id="testContactsData" class="form-control" rows="8" placeholder="Enter test contacts JSON data here...">
+[
+    {
+        "name": "Test User 1",
+        "number": "628123456789",
+        "fileName": "test1.pdf"
+    },
+    {
+        "name": "Test User 2", 
+        "number": "628987654321",
+        "fileName": "test2.docx"
+    }
+]
+                </textarea>
+                <button class="btn btn-primary mt-2" onclick="testCustomContacts()">Test Custom Contacts</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            const timestamp = new Date().toLocaleTimeString();
+            const colorClass = type === 'error' ? 'text-danger' : type === 'success' ? 'text-success' : type === 'warning' ? 'text-warning' : 'text-info';
+            results.innerHTML += `<div class="${colorClass}"><strong>[${timestamp}]</strong> ${message}</div>`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '<p>Results cleared...</p>';
+        }
+
+        async function testDocumentsFolder() {
+            log('🔍 Testing documents folder...', 'info');
+            
+            try {
+                const response = await fetch('/api/file-matching/documents');
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ Documents folder accessible`, 'success');
+                    log(`📁 Found ${result.files.length} files`, 'info');
+                    
+                    if (result.files.length > 0) {
+                        log('📄 Sample files:', 'info');
+                        result.files.slice(0, 5).forEach(file => {
+                            log(`  - ${file.fileName} (${Math.round(file.size / 1024)}KB)`, 'info');
+                        });
+                    }
+                    
+                    if (result.statistics) {
+                        log(`📊 Statistics: ${JSON.stringify(result.statistics)}`, 'info');
+                    }
+                } else {
+                    log(`❌ Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFileMatching() {
+            log('🔍 Testing file matching with sample data...', 'info');
+            
+            const sampleContacts = [
+                { name: 'Test User 1', number: '628123456789', fileName: 'test1.pdf' },
+                { name: 'Test User 2', number: '628987654321', fileName: 'test2.docx' },
+                { name: 'Test User 3', number: '628111222333', fileName: 'nonexistent.pdf' }
+            ];
+            
+            try {
+                const response = await fetch('/api/file-matching/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contacts: sampleContacts })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ File matching test completed`, 'success');
+                    log(`📊 Matched: ${result.matched.length}, Unmatched: ${result.unmatched.length}`, 'info');
+                    log(`📁 Documents folder: ${result.documentsFolder}`, 'info');
+                    log(`📄 Available files: ${result.availableFiles.length}`, 'info');
+                    
+                    if (result.matched.length > 0) {
+                        log('✅ Matched contacts:', 'success');
+                        result.matched.forEach(contact => {
+                            log(`  - ${contact.name}: ${contact.matchedFile.fileName}`, 'success');
+                        });
+                    }
+                    
+                    if (result.unmatched.length > 0) {
+                        log('⚠️ Unmatched contacts:', 'warning');
+                        result.unmatched.forEach(contact => {
+                            log(`  - ${contact.name}: ${contact.reason}`, 'warning');
+                        });
+                    }
+                    
+                    if (result.testResults) {
+                        log('🔍 File validation results:', 'info');
+                        result.testResults.forEach(test => {
+                            const status = test.fileExists ? '✅' : '❌';
+                            log(`  ${status} ${test.fileName} (${test.fileSize} bytes, ${test.fileType})`, test.fileExists ? 'success' : 'error');
+                        });
+                    }
+                } else {
+                    log(`❌ Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testStoredContacts() {
+            log('🔍 Testing stored contacts...', 'info');
+            
+            try {
+                const response = await fetch('/api/contacts');
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ Found ${result.contacts.length} stored contacts`, 'success');
+                    
+                    if (result.contacts.length > 0) {
+                        const contactsWithFiles = result.contacts.filter(c => c.fileName || c.namaFile || c.nama_file || c.file);
+                        log(`📄 Contacts with file names: ${contactsWithFiles.length}`, 'info');
+                        
+                        if (contactsWithFiles.length > 0) {
+                            log('Sample contacts with files:', 'info');
+                            contactsWithFiles.slice(0, 3).forEach(contact => {
+                                const fileName = contact.fileName || contact.namaFile || contact.nama_file || contact.file;
+                                log(`  - ${contact.name}: ${fileName}`, 'info');
+                            });
+                            
+                            // Test matching with stored contacts
+                            await testMatchingWithStoredContacts(contactsWithFiles.slice(0, 5));
+                        }
+                    }
+                } else {
+                    log(`❌ Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMatchingWithStoredContacts(contacts) {
+            log('🔍 Testing file matching with stored contacts...', 'info');
+            
+            try {
+                const response = await fetch('/api/file-matching/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contacts })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ Stored contacts matching: ${result.matched.length}/${contacts.length} matched`, 'success');
+                } else {
+                    log(`❌ Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBlastValidation() {
+            log('🔍 Testing blast validation...', 'info');
+            
+            try {
+                const response = await fetch('/api/contacts');
+                const contactsResult = await response.json();
+                
+                if (!contactsResult.success || contactsResult.contacts.length === 0) {
+                    log('⚠️ No stored contacts found for validation test', 'warning');
+                    return;
+                }
+                
+                const validationResponse = await fetch('/api/file-matching/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contacts: contactsResult.contacts.slice(0, 10) })
+                });
+                
+                const validationResult = await validationResponse.json();
+                
+                if (validationResult.success) {
+                    log(`✅ Blast validation completed`, 'success');
+                    log(`📊 Ready for blast: ${validationResult.matched.length} contacts`, 'success');
+                    log(`⚠️ Will be skipped: ${validationResult.unmatched.length} contacts`, 'warning');
+                } else {
+                    log(`❌ Validation error: ${validationResult.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCustomContacts() {
+            log('🔍 Testing custom contacts...', 'info');
+            
+            try {
+                const contactsData = document.getElementById('testContactsData').value;
+                const contacts = JSON.parse(contactsData);
+                
+                log(`📝 Testing ${contacts.length} custom contacts`, 'info');
+                
+                const response = await fetch('/api/file-matching/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contacts })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`✅ Custom contacts test completed`, 'success');
+                    log(`📊 Matched: ${result.matched.length}, Unmatched: ${result.unmatched.length}`, 'info');
+                    
+                    result.matched.forEach(contact => {
+                        log(`✅ ${contact.name} → ${contact.matchedFile.fileName}`, 'success');
+                    });
+                    
+                    result.unmatched.forEach(contact => {
+                        log(`❌ ${contact.name}: ${contact.reason}`, 'error');
+                    });
+                } else {
+                    log(`❌ Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run basic tests on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            log('🚀 File Matching Test Tool loaded', 'info');
+            log('Click buttons above to run tests', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -227,29 +227,50 @@ wa-blast/
 
 ## ⚠️ Troubleshooting
 
+### 🧪 Quick Diagnostic Tool:
+**Access:** `http://localhost:3000/test-file-matching.html`
+
+This tool helps you:
+- Test documents folder access
+- Validate file matching logic
+- Check stored contacts
+- Debug blast validation
+
 ### File Tidak Terdeteksi:
 1. Pastikan file ada di folder `documents/`
 2. Check nama file sesuai dengan kolom `fileName`
 3. Refresh documents list
 4. Check file permissions
+5. **NEW:** Use test tool to verify file detection
 
 ### Matching Gagal:
 1. Periksa ejaan nama file
 2. Pastikan ekstensi file benar
 3. Coba gunakan nama tanpa ekstensi
 4. Check case sensitivity
+5. **NEW:** File validation now checks file integrity
 
 ### Upload Gagal:
-1. Check ukuran file (max 100MB)
+1. Check ukuran file (max 200MB per file, 100MB for blast)
 2. Pastikan format file didukung
 3. Check koneksi internet
 4. Restart server jika perlu
+5. **NEW:** Enhanced error messages show specific issues
 
 ### Blast Gagal:
 1. Pastikan WhatsApp terkoneksi
 2. Check file masih ada di folder
 3. Pastikan kontak valid
 4. Check log untuk error detail
+5. **NEW:** Pre-blast validation prevents common failures
+6. **NEW:** Detailed progress tracking with file info
+
+### 🔧 Enhanced Error Handling:
+- File validation before sending (size, integrity, permissions)
+- Automatic retry mechanisms for failed sends
+- Detailed logging with file information
+- Progress tracking shows current file being sent
+- Comprehensive validation reports before blast
 
 ## 🎯 Best Practices
 
