@@ -88,6 +88,14 @@ class WABlastApp {
             this.importContacts();
         });
 
+        // Contact search input
+        const contactSearchInput = document.getElementById('contactSearchInput');
+        if (contactSearchInput) {
+            contactSearchInput.addEventListener('keyup', () => {
+                searchMainContacts();
+            });
+        }
+
         // Tab changes
         document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
             tab.addEventListener('shown.bs.tab', (e) => {

@@ -828,45 +828,102 @@ class FileMatchingApp {
             <form id="blastFilesForm">
                 <div class="mb-3">
                     <label for="blastFilesMessage" class="form-label">Message Template</label>
+                    
+                    <!-- Rich Text Toolbar for File Matching -->
+                    <div class="btn-toolbar mb-2" role="toolbar">
+                        <div class="btn-group me-2" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('bold')" title="Bold">
+                                <i class="fas fa-bold"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('italic')" title="Italic">
+                                <i class="fas fa-italic"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('strikethrough')" title="Strikethrough">
+                                <i class="fas fa-strikethrough"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="formatFileText('monospace')" title="Monospace">
+                                <i class="fas fa-code"></i>
+                            </button>
+                        </div>
+                        <div class="btn-group me-2" role="group" id="standardFileVariables">
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('name')" title="Insert Name">
+                                {{name}}
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('number')" title="Insert Number">
+                                {{number}}
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('email')" title="Insert Email">
+                                {{email}}
+                            </button>
+                            <button type="button" class="btn btn-outline-info btn-sm" onclick="insertFileVariable('company')" title="Insert Company">
+                                {{company}}
+                            </button>
+                        </div>
+                        <div class="btn-group me-2" role="group" id="fileSpecificVariables">
+                            <button type="button" class="btn btn-outline-warning btn-sm" onclick="insertFileVariable('fileName')" title="Insert File Name">
+                                {{fileName}}
+                            </button>
+                        </div>
+                        <div class="btn-group me-2" role="group" id="customFileVariables">
+                            <!-- Dynamic variables from imported headers will be added here -->
+                        </div>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('date')" title="Insert Date">
+                                {{date}}
+                            </button>
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="insertFileVariable('time')" title="Insert Time">
+                                {{time}}
+                            </button>
+                        </div>
+                    </div>
+                    
                     <textarea class="form-control" id="blastFilesMessage" rows="6"
-                              placeholder="Type your message here...&#10;&#10;Use variables: {{name}}, {{number}}, {{fileName}}" required></textarea>
+                              placeholder="Type your message here...&#10;&#10;Use toolbar buttons or type: *bold*, _italic_, ~strikethrough~, \`\`\`monospace\`\`\`&#10;Use variables from your imported file headers" required></textarea>
+                    
+                    <!-- Live Preview -->
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleFilePreview()" id="filePreviewToggle">
+                            <i class="fas fa-eye me-1"></i>
+                            Show Preview
+                        </button>
+                    </div>
+                    
+                    <div id="fileMessagePreview" class="mt-2 p-3 border rounded bg-light" style="display: none;">
+                        <h6>Message Preview:</h6>
+                        <div id="filePreviewContent" class="preview-content"></div>
+                    </div>
+                    
                     <div class="form-text">
-                        <strong>Available variables:</strong> {{name}}, {{number}}, {{email}}, {{company}}, {{fileName}}
+                        <strong>Available variables:</strong> <span id="availableFileVariables">{{name}}, {{number}}, {{email}}, {{company}}, {{fileName}}, {{date}}, {{time}}</span>
                     </div>
                 </div>
 
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label for="blastFilesDelay" class="form-label">Delay Between Messages (ms)</label>
-                        <input type="number" class="form-control" id="blastFilesDelay" value="2000" min="1000" max="10000">
+                        <label for="fileBlastDelay" class="form-label">Delay Between Messages (ms)</label>
+                        <input type="number" class="form-control" id="fileBlastDelay" value="2000" min="1000" max="10000">
                     </div>
                     <div class="col-md-6">
-                        <label for="blastFilesRetry" class="form-label">Retry Attempts</label>
-                        <input type="number" class="form-control" id="blastFilesRetry" value="2" min="1" max="5">
+                        <label for="fileBlastRetry" class="form-label">Retry Attempts</label>
+                        <input type="number" class="form-control" id="fileBlastRetry" value="2" min="1" max="5">
                     </div>
                 </div>
 
-                <div class="mb-3">
-                    <button type="button" class="btn btn-outline-secondary" onclick="previewFileBlast()">
-                        <i class="fas fa-eye me-2"></i>
-                        Preview Matching
-                    </button>
-                </div>
-
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-success btn-lg">
-                        <i class="fas fa-paper-plane me-2"></i>
-                        Send Blast with Files
-                    </button>
-                </div>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-paper-plane me-2"></i>
+                    Send Blast with Files
+                </button>
             </form>
         `;
 
         // Setup form handler
         document.getElementById('blastFilesForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            this.sendBlastWithFiles();
+            this.handleBlastSubmission();
         });
+        
+        // Update variables with current headers
+        updateFileVariables(this.headers);
     }
 
     async sendBlastWithFiles() {
