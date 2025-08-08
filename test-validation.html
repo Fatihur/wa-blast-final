@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Matching Validation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Test File Matching Validation</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h3>Test Preview API</h3>
+                <button class="btn btn-primary" onclick="testPreviewAPI()">Test Preview API</button>
+                <div id="previewResult" class="mt-3"></div>
+            </div>
+            
+            <div class="col-md-6">
+                <h3>Test Validation Flow</h3>
+                <button class="btn btn-success" onclick="testValidationFlow()">Test Validation Flow</button>
+                <div id="validationResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function testPreviewAPI() {
+            try {
+                const response = await fetch('/api/file-matching/preview');
+                const data = await response.json();
+                
+                document.getElementById('previewResult').innerHTML = `
+                    <div class="alert alert-info">
+                        <h5>Preview API Response:</h5>
+                        <p><strong>Success:</strong> ${data.success}</p>
+                        <p><strong>Total Contacts:</strong> ${data.statistics?.totalContacts || 0}</p>
+                        <p><strong>Matched:</strong> ${data.statistics?.matched || 0}</p>
+                        <p><strong>Auto Matched:</strong> ${data.statistics?.autoMatched || 0}</p>
+                        <p><strong>Manual Matched:</strong> ${data.statistics?.manualMatched || 0}</p>
+                        <p><strong>Requires Validation:</strong> ${data.statistics?.requiresValidation || false}</p>
+                    </div>
+                    <details>
+                        <summary>Full Response</summary>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
+            } catch (error) {
+                document.getElementById('previewResult').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testValidationFlow() {
+            try {
+                // First get the preview
+                const previewResponse = await fetch('/api/file-matching/preview');
+                const previewData = await previewResponse.json();
+                
+                if (!previewData.success) {
+                    throw new Error('Preview API failed');
+                }
+
+                // Filter contacts that need validation
+                const autoMatched = previewData.preview.filter(item => 
+                    item.validationRequired && item.status === 'matched'
+                );
+
+                document.getElementById('validationResult').innerHTML = `
+                    <div class="alert alert-success">
+                        <h5>Validation Flow Test:</h5>
+                        <p><strong>Contacts requiring validation:</strong> ${autoMatched.length}</p>
+                        ${autoMatched.length > 0 ? `
+                            <h6>Sample auto-matched contact:</h6>
+                            <ul>
+                                <li><strong>Name:</strong> ${autoMatched[0].contact.name}</li>
+                                <li><strong>File:</strong> ${autoMatched[0].matchedFile.fileName}</li>
+                                <li><strong>Method:</strong> ${autoMatched[0].matchedFile.matchingMethod}</li>
+                                <li><strong>Requires Validation:</strong> ${autoMatched[0].validationRequired}</li>
+                            </ul>
+                        ` : '<p>No contacts require validation</p>'}
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('validationResult').innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -25,10 +25,6 @@
                     <i class="fas fa-list-alt me-1"></i>
                     Logs
                 </a>
-                <a class="nav-link" href="/anti-ban-dashboard.html" >
-                    <i class="fas fa-shield-alt me-1"></i>
-                    Anti-Ban
-                </a>
             
 
                 <div class="nav-item">
@@ -339,6 +335,14 @@
                                         <i class="fas fa-users me-1"></i>
                                         Add Selected to Group
                                     </button>
+                                    <button class="btn btn-outline-primary" id="bulkEditBtnMain" onclick="app.showBulkEditModal()" disabled>
+                                        <i class="fas fa-edit me-1"></i>
+                                        Edit Selected
+                                    </button>
+                                    <button class="btn btn-outline-danger" id="bulkDeleteBtnMain" onclick="app.bulkDeleteContacts()" disabled>
+                                        <i class="fas fa-trash me-1"></i>
+                                        Delete Selected
+                                    </button>
                                     <button class="btn btn-outline-info" onclick="app.selectAllContacts(true)">
                                         <i class="fas fa-check-square me-1"></i>
                                         Select All
@@ -507,6 +511,98 @@
                     <button type="button" class="btn btn-primary" id="bulkAddToGroupBtn">
                         <i class="fas fa-plus me-2"></i>
                         Add to Selected Groups
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Contact Modal -->
+    <div class="modal fade" id="editContactModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Contact</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editContactForm">
+                        <input type="hidden" id="editContactId">
+                        <div class="mb-3">
+                            <label for="editContactName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="editContactName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editContactNumber" class="form-label">Phone Number</label>
+                            <input type="text" class="form-control" id="editContactNumber" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editContactEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="editContactEmail">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editContactCompany" class="form-label">Company</label>
+                            <input type="text" class="form-control" id="editContactCompany">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editContactAddress" class="form-label">Address</label>
+                            <textarea class="form-control" id="editContactAddress" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editContactNotes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="editContactNotes" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="app.saveEditContact()">
+                        <i class="fas fa-save me-2"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Edit Modal -->
+    <div class="modal fade" id="bulkEditModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Bulk Edit Contacts</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Only fill in the fields you want to update. Empty fields will be left unchanged.
+                    </div>
+                    <form id="bulkEditForm">
+                        <div class="mb-3">
+                            <label for="bulkEditEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="bulkEditEmail" placeholder="Leave empty to keep existing values">
+                        </div>
+                        <div class="mb-3">
+                            <label for="bulkEditCompany" class="form-label">Company</label>
+                            <input type="text" class="form-control" id="bulkEditCompany" placeholder="Leave empty to keep existing values">
+                        </div>
+                        <div class="mb-3">
+                            <label for="bulkEditAddress" class="form-label">Address</label>
+                            <textarea class="form-control" id="bulkEditAddress" rows="2" placeholder="Leave empty to keep existing values"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bulkEditNotes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="bulkEditNotes" rows="2" placeholder="Leave empty to keep existing values"></textarea>
+                        </div>
+                    </form>
+                    <div id="bulkEditSelectedCount" class="text-muted"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="app.saveBulkEdit()">
+                        <i class="fas fa-save me-2"></i>
+                        Update Selected Contacts
                     </button>
                 </div>
             </div>

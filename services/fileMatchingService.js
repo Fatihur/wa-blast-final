@@ -6,6 +6,9 @@ class FileMatchingService {
     constructor() {
         this.documentsFolder = path.resolve('./documents');
         this.supportedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        this.fileCache = null;
+        this.cacheTimestamp = null;
+        this.cacheTimeout = 30000; // 30 seconds cache
         this.init();
     }
 
@@ -24,17 +27,23 @@ class FileMatchingService {
      */
     async scanDocumentsFolder() {
         try {
+            // Check if cache is valid
+            const now = Date.now();
+            if (this.fileCache && this.cacheTimestamp && (now - this.cacheTimestamp) < this.cacheTimeout) {
+                return this.fileCache;
+            }
+
             const files = await fs.readdir(this.documentsFolder);
             const fileList = [];
 
             for (const file of files) {
                 const filePath = path.join(this.documentsFolder, file);
                 const stats = await fs.stat(filePath);
-                
+
                 if (stats.isFile()) {
                     const ext = path.extname(file).toLowerCase();
                     const nameWithoutExt = path.basename(file, ext);
-                    
+
                     fileList.push({
                         fileName: file,
                         nameWithoutExt: nameWithoutExt,
@@ -47,6 +56,10 @@ class FileMatchingService {
                 }
             }
 
+            // Update cache
+            this.fileCache = fileList;
+            this.cacheTimestamp = now;
+
             await logger.info(`Scanned documents folder: ${fileList.length} files found`);
             return fileList;
         } catch (error) {
@@ -56,7 +69,15 @@ class FileMatchingService {
     }
 
     /**
-     * Match contacts with their corresponding files
+     * Clear file cache (call when files are added/removed)
+     */
+    clearFileCache() {
+        this.fileCache = null;
+        this.cacheTimestamp = null;
+    }
+
+    /**
+     * Match contacts with their corresponding files based on contact names
      */
     async matchContactsWithFiles(contacts) {
         try {
@@ -66,18 +87,31 @@ class FileMatchingService {
             const unusedFiles = [...availableFiles];
 
             for (const contact of contacts) {
-                const fileName = contact.fileName || contact.namaFile || contact.nama_file || contact.file;
-                
-                if (!fileName) {
-                    unmatchedContacts.push({
-                        ...contact,
-                        reason: 'No file name specified in contact data'
-                    });
-                    continue;
+                // First try to use specified file name if provided (backward compatibility)
+                const specifiedFileName = contact.fileName || contact.namaFile || contact.nama_file || contact.file;
+
+                let matchedFile = null;
+                let matchingMethod = '';
+
+                // If file name is specified, try that first
+                if (specifiedFileName) {
+                    matchedFile = this.findMatchingFile(specifiedFileName, availableFiles);
+                    if (matchedFile) {
+                        matchingMethod = 'specified_filename';
+                    }
                 }
 
-                // Try to find matching file
-                const matchedFile = this.findMatchingFile(fileName, availableFiles);
+                // If no match found with specified filename or no filename specified, try contact name
+                if (!matchedFile) {
+                    const contactName = contact.name || contact.nama || contact.contactName || contact.contact_name;
+
+                    if (contactName) {
+                        matchedFile = this.findMatchingFileByName(contactName, availableFiles);
+                        if (matchedFile) {
+                            matchingMethod = 'contact_name';
+                        }
+                    }
+                }
 
                 if (matchedFile) {
                     // Validate the matched file
@@ -92,7 +126,8 @@ class FileMatchingService {
                                 extension: matchedFile.extension,
                                 size: matchedFile.size,
                                 type: this.getFileType(matchedFile.extension),
-                                validated: true
+                                validated: true,
+                                matchingMethod: matchingMethod
                             }
                         });
 
@@ -102,15 +137,30 @@ class FileMatchingService {
                             unusedFiles.splice(index, 1);
                         }
                     } else {
+                        const searchTerm = specifiedFileName || contact.name || contact.nama || 'unknown';
                         unmatchedContacts.push({
                             ...contact,
-                            reason: `File "${fileName}" validation failed: ${validation.error}`
+                            reason: `File "${matchedFile.fileName}" validation failed: ${validation.error}`,
+                            searchTerm: searchTerm
                         });
                     }
                 } else {
+                    const searchTerm = specifiedFileName || contact.name || contact.nama || 'unknown';
+                    const contactName = contact.name || contact.nama || contact.contactName || contact.contact_name;
+
+                    let reason = '';
+                    if (specifiedFileName) {
+                        reason = `File "${specifiedFileName}" not found in documents folder`;
+                    } else if (contactName) {
+                        reason = `No file found matching contact name "${contactName}"`;
+                    } else {
+                        reason = 'No file name specified and no contact name available for matching';
+                    }
+
                     unmatchedContacts.push({
                         ...contact,
-                        reason: `File "${fileName}" not found in documents folder`
+                        reason: reason,
+                        searchTerm: searchTerm
                     });
                 }
             }
@@ -137,14 +187,14 @@ class FileMatchingService {
     }
 
     /**
-     * Find matching file for given filename
+     * Find matching file for given filename (legacy method for backward compatibility)
      */
     findMatchingFile(fileName, availableFiles) {
         // Remove extension from search term if present
         const searchName = path.basename(fileName, path.extname(fileName)).toLowerCase();
-        
+
         // Try exact match first (with and without extension)
-        let match = availableFiles.find(file => 
+        let match = availableFiles.find(file =>
             file.fileName.toLowerCase() === fileName.toLowerCase() ||
             file.nameWithoutExt.toLowerCase() === searchName
         );
@@ -152,12 +202,138 @@ class FileMatchingService {
         if (match) return match;
 
         // Try partial match
-        match = availableFiles.find(file => 
+        match = availableFiles.find(file =>
             file.nameWithoutExt.toLowerCase().includes(searchName) ||
             searchName.includes(file.nameWithoutExt.toLowerCase())
         );
 
         return match;
+    }
+
+    /**
+     * Find matching file based on contact name with intelligent matching
+     */
+    findMatchingFileByName(contactName, availableFiles) {
+        if (!contactName || typeof contactName !== 'string') {
+            return null;
+        }
+
+        const normalizedContactName = this.normalizeNameForMatching(contactName);
+
+        // Generate possible name variations
+        const nameVariations = this.generateNameVariations(normalizedContactName);
+
+        // Try exact matches first
+        for (const variation of nameVariations) {
+            const match = availableFiles.find(file => {
+                const normalizedFileName = this.normalizeNameForMatching(file.nameWithoutExt);
+                return normalizedFileName === variation;
+            });
+            if (match) return match;
+        }
+
+        // Try partial matches (file name contains contact name or vice versa)
+        for (const variation of nameVariations) {
+            const match = availableFiles.find(file => {
+                const normalizedFileName = this.normalizeNameForMatching(file.nameWithoutExt);
+                return normalizedFileName.includes(variation) || variation.includes(normalizedFileName);
+            });
+            if (match) return match;
+        }
+
+        // Try fuzzy matching for common name patterns
+        const match = availableFiles.find(file => {
+            const normalizedFileName = this.normalizeNameForMatching(file.nameWithoutExt);
+            return this.isFuzzyNameMatch(normalizedContactName, normalizedFileName);
+        });
+
+        return match;
+    }
+
+    /**
+     * Normalize name for matching (lowercase, remove special chars, standardize separators)
+     */
+    normalizeNameForMatching(name) {
+        if (!name || typeof name !== 'string') return '';
+
+        return name
+            .toLowerCase()
+            .trim()
+            // Replace various separators with spaces
+            .replace(/[_\-\.]+/g, ' ')
+            // Remove extra spaces
+            .replace(/\s+/g, ' ')
+            // Remove special characters except spaces
+            .replace(/[^a-z0-9\s]/g, '')
+            .trim();
+    }
+
+    /**
+     * Generate name variations for matching
+     */
+    generateNameVariations(normalizedName) {
+        const variations = new Set();
+
+        // Original normalized name
+        variations.add(normalizedName);
+
+        // With underscores instead of spaces
+        variations.add(normalizedName.replace(/\s+/g, '_'));
+
+        // With dashes instead of spaces
+        variations.add(normalizedName.replace(/\s+/g, '-'));
+
+        // With dots instead of spaces
+        variations.add(normalizedName.replace(/\s+/g, '.'));
+
+        // Without spaces (concatenated)
+        variations.add(normalizedName.replace(/\s+/g, ''));
+
+        // First name only (if multiple words)
+        const words = normalizedName.split(/\s+/);
+        if (words.length > 1) {
+            variations.add(words[0]);
+
+            // Last name only
+            variations.add(words[words.length - 1]);
+
+            // First + Last (skip middle names)
+            if (words.length > 2) {
+                variations.add(`${words[0]} ${words[words.length - 1]}`);
+                variations.add(`${words[0]}_${words[words.length - 1]}`);
+                variations.add(`${words[0]}-${words[words.length - 1]}`);
+            }
+        }
+
+        return Array.from(variations).filter(v => v.length > 0);
+    }
+
+    /**
+     * Check if two normalized names are a fuzzy match
+     */
+    isFuzzyNameMatch(name1, name2) {
+        if (!name1 || !name2) return false;
+
+        const words1 = name1.split(/\s+/).filter(w => w.length > 0);
+        const words2 = name2.split(/\s+/).filter(w => w.length > 0);
+
+        // If either has only one word, check if it's contained in the other
+        if (words1.length === 1 || words2.length === 1) {
+            return words1.some(w1 => words2.some(w2 => w1.includes(w2) || w2.includes(w1)));
+        }
+
+        // For multi-word names, check if at least 2 words match
+        let matchCount = 0;
+        for (const word1 of words1) {
+            for (const word2 of words2) {
+                if (word1 === word2 || word1.includes(word2) || word2.includes(word1)) {
+                    matchCount++;
+                    break;
+                }
+            }
+        }
+
+        return matchCount >= Math.min(2, Math.min(words1.length, words2.length));
     }
 
     /**
@@ -374,6 +550,44 @@ class FileMatchingService {
     }
 
     /**
+     * Test the name matching functionality
+     */
+    testNameMatching() {
+        const testFiles = [
+            { fileName: 'John Doe.pdf', nameWithoutExt: 'John Doe', extension: '.pdf' },
+            { fileName: 'jane_smith.jpg', nameWithoutExt: 'jane_smith', extension: '.jpg' },
+            { fileName: 'MIKE-WILSON.docx', nameWithoutExt: 'MIKE-WILSON', extension: '.docx' },
+            { fileName: 'alice.png', nameWithoutExt: 'alice', extension: '.png' },
+            { fileName: 'Bob Johnson Certificate.pdf', nameWithoutExt: 'Bob Johnson Certificate', extension: '.pdf' }
+        ];
+
+        const testContacts = [
+            'John Doe',
+            'Jane Smith',
+            'Mike Wilson',
+            'Alice Brown',
+            'Bob Johnson',
+            'Unknown Person'
+        ];
+
+        console.log('=== File Matching Test Results ===');
+        testContacts.forEach(contactName => {
+            const match = this.findMatchingFileByName(contactName, testFiles);
+            console.log(`Contact: "${contactName}" → ${match ? `Matched: "${match.fileName}"` : 'No match'}`);
+        });
+        console.log('=== End Test Results ===');
+
+        return {
+            testFiles,
+            testContacts,
+            results: testContacts.map(name => ({
+                contactName: name,
+                matchedFile: this.findMatchingFileByName(name, testFiles)
+            }))
+        };
+    }
+
+    /**
      * Create sample template for file matching
      */
     generateSampleTemplate() {
@@ -382,19 +596,32 @@ class FileMatchingService {
                 name: 'John Doe',
                 number: '628123456789',
                 email: 'john@example.com',
-                fileName: 'john_certificate.pdf'
+                notes: 'Files will be automatically matched by name (e.g., "John Doe.pdf", "john_doe.jpg")'
             },
             {
                 name: 'Jane Smith',
                 number: '628234567890',
                 email: 'jane@example.com',
-                fileName: 'jane_report.docx'
+                notes: 'Smart matching supports various formats: "Jane Smith.docx", "jane-smith.png"'
             },
             {
                 name: 'Bob Johnson',
                 number: '628345678901',
                 email: 'bob@example.com',
-                fileName: 'bob_invoice.pdf'
+                fileName: 'specific_file.pdf',
+                notes: 'Optional: Use fileName column to specify exact file name'
+            },
+            {
+                name: 'Alice Brown',
+                number: '628456789012',
+                email: 'alice@example.com',
+                notes: 'Works with partial names too: "alice.jpg" will match "Alice Brown"'
+            },
+            {
+                name: 'Mike Wilson',
+                number: '628567890123',
+                email: 'mike@example.com',
+                notes: 'Case-insensitive: "MIKE WILSON.PDF" or "mike_wilson.docx" both work'
             }
         ];
     }

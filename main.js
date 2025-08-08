@@ -203,12 +203,6 @@ function createMenu() {
             label: 'Tools',
             submenu: [
                 {
-                    label: 'Anti-Ban Dashboard',
-                    click: () => {
-                        mainWindow.loadURL('http://localhost:3000/anti-ban-dashboard.html');
-                    }
-                },
-                {
                     label: 'File Matching',
                     click: () => {
                         mainWindow.loadURL('http://localhost:3000/file-matching.html');

@@ -60,7 +60,6 @@ RAILWAY_URL=$(railway status --json | grep -o '"url":"[^"]*' | cut -d'"' -f4)
 if [ ! -z "$RAILWAY_URL" ]; then
     print_status "✅ Deployment successful!"
     print_status "🌐 Your application is available at: $RAILWAY_URL"
-    print_status "📊 Anti-Ban Dashboard: $RAILWAY_URL/anti-ban-dashboard.html"
     print_status "📁 File Matching: $RAILWAY_URL/file-matching.html"
     print_status "📋 Logs: $RAILWAY_URL/logs.html"
     echo ""

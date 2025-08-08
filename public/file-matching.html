@@ -29,13 +29,34 @@
         <div class="row mb-4">
             <div class="col-12">
                 <div class="alert alert-info">
-                    <h5><i class="fas fa-info-circle me-2"></i>File Matching Instructions</h5>
-                    <ol class="mb-0">
-                        <li>Upload your documents to the Documents folder</li>
-                        <li>Import contacts with a "fileName" column in your Excel file</li>
-                        <li>The system will match contact's fileName with actual files in Documents folder</li>
-                        <li>Send blast messages with different files for each contact</li>
-                    </ol>
+                    <h5><i class="fas fa-magic me-2"></i>Smart File Matching - Now Even Easier!</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-star text-warning me-1"></i>New: Automatic Name-Based Matching</h6>
+                            <ol class="mb-2">
+                                <li>Upload your documents to the Documents folder</li>
+                                <li>Name your files after your contacts (e.g., "John Doe.pdf", "jane_smith.jpg")</li>
+                                <li>Import contacts with names - no need for fileName columns!</li>
+                                <li>The system automatically matches files to contact names</li>
+                            </ol>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-lightbulb text-info me-1"></i>Supported Name Formats</h6>
+                            <ul class="mb-2">
+                                <li><code>John Doe.pdf</code> → matches "John Doe"</li>
+                                <li><code>john_doe.jpg</code> → matches "John Doe"</li>
+                                <li><code>JANE-SMITH.docx</code> → matches "Jane Smith"</li>
+                                <li><code>mike.png</code> → matches "Mike Johnson"</li>
+                            </ul>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Legacy mode: You can still use fileName columns for specific file names.
+                                <br>
+                                <i class="fas fa-upload me-1"></i>
+                                <strong>High Capacity:</strong> Upload up to 2000 files at once (200MB each).
+                            </small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -75,8 +96,8 @@
                             <div class="col-md-6">
                                 <h6>Upload Documents</h6>
                                 <div class="mb-3">
-                                    <input type="file" class="form-control" id="documentsInput" multiple accept="*/*">
-                                    <div class="form-text">Select multiple files to upload to documents folder</div>
+                                    <input type="file" class="form-control" id="documentsInput" name="documents" multiple accept="*/*">
+                                    <div class="form-text">Select multiple files to upload to documents folder (up to 2000 files, 200MB each)</div>
                                 </div>
                                 <button class="btn btn-primary" onclick="uploadDocuments()">
                                     <i class="fas fa-upload me-2"></i>
@@ -160,6 +181,10 @@
                                     <i class="fas fa-sync me-2"></i>
                                     Refresh
                                 </button>
+                                <button class="btn btn-outline-info ms-2" onclick="showManualAssignmentModal()">
+                                    <i class="fas fa-plus me-2"></i>
+                                    Manual Assignment
+                                </button>
                             </div>
                             <div class="col-md-6">
                                 <div id="matchingStats" class="text-end">
@@ -168,10 +193,166 @@
                             </div>
                         </div>
 
+                        <!-- Bulk Actions for Automatic Matches -->
+                        <div id="bulkActionsSection" style="display: none;">
+                            <div class="card mb-3 border-info">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-cogs me-2"></i>
+                                        Bulk Actions for Automatic Matches
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-8">
+                                            <p class="mb-2">
+                                                <i class="fas fa-info-circle text-info me-2"></i>
+                                                Control which automatically matched contacts will be included in the blast
+                                            </p>
+                                        </div>
+                                        <div class="col-md-4 text-end">
+                                            <button class="btn btn-sm btn-success me-2" onclick="bulkEnableAutoMatches()">
+                                                <i class="fas fa-check-circle me-1"></i>
+                                                Enable All
+                                            </button>
+                                            <button class="btn btn-sm btn-warning" onclick="bulkDisableAutoMatches()">
+                                                <i class="fas fa-times-circle me-1"></i>
+                                                Disable All
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="matchingResults">
                             <div class="alert alert-secondary">
                                 <i class="fas fa-info-circle me-2"></i>
                                 Click "Preview Matching" to see how contacts will be matched with files
+                            </div>
+                        </div>
+
+                        <!-- Validation Section -->
+                        <div id="validationSection" style="display: none;">
+                            <div class="card mt-4 border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        Validation Required for Automatic Matches
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        Some files were automatically matched by contact name. Please validate these matches before proceeding.
+                                    </div>
+
+                                    <div id="validationProgress" class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>Validation Progress:</span>
+                                            <span class="badge bg-primary" id="validationCounter">0 of 0</span>
+                                        </div>
+                                        <div class="progress mt-2">
+                                            <div class="progress-bar" role="progressbar" style="width: 0%" id="validationProgressBar"></div>
+                                        </div>
+                                    </div>
+
+                                    <div id="currentValidationItem" class="border rounded p-3 mb-3" style="display: none;">
+                                        <!-- Current validation item will be populated here -->
+                                    </div>
+
+                                    <div class="d-flex justify-content-between">
+                                        <button type="button" class="btn btn-outline-danger" id="skipAllBtn">
+                                            <i class="fas fa-times me-2"></i>
+                                            Skip All Auto-Matches
+                                        </button>
+                                        <div>
+                                            <button type="button" class="btn btn-outline-secondary me-2" id="skipCurrentBtn" style="display: none;">
+                                                <i class="fas fa-times me-2"></i>
+                                                Skip This Contact
+                                            </button>
+                                            <button type="button" class="btn btn-outline-info me-2" id="changeFileBtn" style="display: none;">
+                                                <i class="fas fa-search me-2"></i>
+                                                Choose Different File
+                                            </button>
+                                            <button type="button" class="btn btn-success" id="confirmCurrentBtn" style="display: none;">
+                                                <i class="fas fa-check me-2"></i>
+                                                Confirm Match
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div id="validationSummary" class="mt-3" style="display: none;">
+                                        <h6>Validation Summary:</h6>
+                                        <div class="row text-center">
+                                            <div class="col-4">
+                                                <div class="card bg-success text-white">
+                                                    <div class="card-body p-2">
+                                                        <h5 class="mb-1" id="confirmedCount">0</h5>
+                                                        <small>Confirmed</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="card bg-info text-white">
+                                                    <div class="card-body p-2">
+                                                        <h5 class="mb-1" id="changedCount">0</h5>
+                                                        <small>Changed</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-4">
+                                                <div class="card bg-warning text-white">
+                                                    <div class="card-body p-2">
+                                                        <h5 class="mb-1" id="skippedCount">0</h5>
+                                                        <small>Skipped</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <button type="button" class="btn btn-primary" id="proceedWithValidatedBtn">
+                                                <i class="fas fa-paper-plane me-2"></i>
+                                                Proceed to Blast Tab
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- File Selection Modal for Validation -->
+                        <div class="modal fade" id="fileSelectionValidationModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Select File for <span id="validationContactName"></span></h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control" id="validationFileSearch" placeholder="Search files...">
+                                        </div>
+                                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                            <table class="table table-hover">
+                                                <thead class="sticky-top bg-white">
+                                                    <tr>
+                                                        <th>File Name</th>
+                                                        <th>Type</th>
+                                                        <th>Size</th>
+                                                        <th>Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="validationFileTableBody">
+                                                    <!-- Files will be populated here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -284,7 +465,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
         </div>
     </div>
 
@@ -302,8 +482,222 @@
         </div>
     </div>
 
+    <!-- Blast Progress Modal -->
+    <div class="modal fade" id="blastProgressModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sending Blast Messages...</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="progress-stats text-center mb-4">
+                        <div class="d-flex justify-content-between">
+                            <div class="stat-item">
+                                <div class="stat-number" id="totalStat">0</div>
+                                <div class="stat-label">Total</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="sentStat">0</div>
+                                <div class="stat-label">Sent</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="failedStat">0</div>
+                                <div class="stat-label">Failed</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-number" id="progressStat">0%</div>
+                                <div class="stat-label">Progress</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar" id="blastFilesProgressBar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="currentContact" class="text-muted text-center"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Match Validation Modal -->
+    <div class="modal fade" id="fileMatchValidationModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm File Matches</h5>
+                    <div class="ms-auto">
+                        <span class="badge bg-primary" id="validationProgress">1 of 10</span>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Please confirm that the matched file is correct for each contact before sending.
+                    </div>
+
+                    <div id="currentValidationItem">
+                        <!-- Current validation item will be populated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger" id="skipContactBtn">
+                        <i class="fas fa-times me-2"></i>
+                        Skip Contact
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="changeFileBtn">
+                        <i class="fas fa-search me-2"></i>
+                        Choose Different File
+                    </button>
+                    <button type="button" class="btn btn-success" id="confirmMatchBtn">
+                        <i class="fas fa-check me-2"></i>
+                        Confirm Match
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Selection Modal -->
+    <div class="modal fade" id="fileSelectionModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select File for <span id="fileSelectionContactName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="fileSearchInput" placeholder="Search files...">
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>File Name</th>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fileSelectionTableBody">
+                                <!-- Files will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Validation Summary Modal -->
+    <div class="modal fade" id="validationSummaryModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Validation Summary</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="validationSummaryContent">
+                        <!-- Summary content will be populated here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="proceedWithSendingBtn">
+                        <i class="fas fa-paper-plane me-2"></i>
+                        Proceed with Sending
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Assignment Modal -->
+    <div class="modal fade" id="manualAssignmentModal" tabindex="-1" aria-labelledby="manualAssignmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="manualAssignmentModalLabel">
+                        <i class="fas fa-plus me-2"></i>
+                        Manual File Assignment
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="manualAssignmentForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="contactSelect" class="form-label">
+                                        <i class="fas fa-user me-2"></i>
+                                        Select Contact
+                                    </label>
+                                    <select class="form-select" id="contactSelect" required>
+                                        <option value="">Choose a contact...</option>
+                                    </select>
+                                    <div class="form-text">Select the contact to assign a file to</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="assignmentType" class="form-label">
+                                        <i class="fas fa-cog me-2"></i>
+                                        Assignment Type
+                                    </label>
+                                    <select class="form-select" id="assignmentType">
+                                        <option value="override">Override existing match</option>
+                                        <option value="new">Assign to unmatched contact</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fileSearch" class="form-label">
+                                <i class="fas fa-search me-2"></i>
+                                Search Files
+                            </label>
+                            <input type="text" class="form-control" id="fileSearch" placeholder="Type to search files...">
+                            <div class="form-text">Search by filename to find the file you want to assign</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-file me-2"></i>
+                                Available Files
+                            </label>
+                            <div id="fileSearchResults" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                <div class="text-muted text-center">
+                                    <i class="fas fa-search fa-2x mb-2"></i>
+                                    <p>Start typing to search for files</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="selectedFileInfo" style="display: none;" class="alert alert-info">
+                            <h6><i class="fas fa-info-circle me-2"></i>Selected File</h6>
+                            <div id="selectedFileDetails"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="assignFileBtn" onclick="assignFileToContact()" disabled>
+                        <i class="fas fa-link me-2"></i>
+                        Assign File
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="file-matching.js"></script>
 </body>
 </html>

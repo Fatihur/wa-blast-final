@@ -222,7 +222,6 @@ tar -czf uploads-backup.tar.gz uploads/
 Setelah deployment berhasil:
 
 - **Main App**: `https://yourdomain.com/wa-blast/`
-- **Anti-Ban Dashboard**: `https://yourdomain.com/wa-blast/anti-ban-dashboard.html`
 - **File Matching**: `https://yourdomain.com/wa-blast/file-matching.html`
 - **Logs**: `https://yourdomain.com/wa-blast/logs.html`
 

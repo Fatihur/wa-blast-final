@@ -4,6 +4,8 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs-extra');
+const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 require('dotenv').config();
 
 const whatsappService = require('./services/whatsappService');
@@ -28,6 +30,24 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// Session middleware
+app.use(session({
+    store: new FileStore({
+        path: './sessions',
+        ttl: 86400, // 24 hours
+        reapInterval: 3600 // 1 hour
+    }),
+    secret: process.env.SESSION_SECRET || 'wa-blast-secret-key-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: false, // Set to true in production with HTTPS
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+
 app.use(express.static('public'));
 
 // Ensure directories exist
@@ -77,11 +97,6 @@ app.get('/test-buttons.html', (req, res) => {
 // Serve test notifications page
 app.get('/test-notifications.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'test-notifications.html'));
-});
-
-// Serve anti-ban dashboard page
-app.get('/anti-ban-dashboard.html', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'anti-ban-dashboard.html'));
 });
 
 // Socket.io connection handling

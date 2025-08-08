@@ -378,6 +378,83 @@ router.patch('/select-all', async (req, res) => {
     }
 });
 
+// Bulk delete contacts
+router.delete('/bulk', async (req, res) => {
+    try {
+        const { contactIds } = req.body;
+
+        if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+            return res.status(400).json({ error: 'Contact IDs array is required' });
+        }
+
+        let deletedCount = 0;
+        const errors = [];
+
+        for (const id of contactIds) {
+            try {
+                const deleted = await contactStorage.deleteContact(parseInt(id));
+                if (deleted) {
+                    deletedCount++;
+                }
+            } catch (error) {
+                errors.push(`Failed to delete contact ${id}: ${error.message}`);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: `Successfully deleted ${deletedCount} contacts`,
+            deletedCount,
+            errors: errors.length > 0 ? errors : undefined
+        });
+    } catch (error) {
+        console.error('Error bulk deleting contacts:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Bulk update contacts
+router.put('/bulk', async (req, res) => {
+    try {
+        const { contactIds, updates } = req.body;
+
+        if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+            return res.status(400).json({ error: 'Contact IDs array is required' });
+        }
+
+        if (!updates || typeof updates !== 'object') {
+            return res.status(400).json({ error: 'Updates object is required' });
+        }
+
+        let updatedCount = 0;
+        const errors = [];
+        const updatedContacts = [];
+
+        for (const id of contactIds) {
+            try {
+                const updated = await contactStorage.updateContact(parseInt(id), updates);
+                if (updated) {
+                    updatedCount++;
+                    updatedContacts.push(updated);
+                }
+            } catch (error) {
+                errors.push(`Failed to update contact ${id}: ${error.message}`);
+            }
+        }
+
+        res.json({
+            success: true,
+            message: `Successfully updated ${updatedCount} contacts`,
+            updatedCount,
+            updatedContacts,
+            errors: errors.length > 0 ? errors : undefined
+        });
+    } catch (error) {
+        console.error('Error bulk updating contacts:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Clear all contacts
 router.delete('/', async (req, res) => {
     try {

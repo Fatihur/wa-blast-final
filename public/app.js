@@ -1010,6 +1010,9 @@ class WABlastApp {
                 </td>
                 <td>
                     <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-primary" onclick="app.showEditContactModal(${contact.id})" title="Edit Contact">
+                            <i class="fas fa-edit"></i>
+                        </button>
                         <button class="btn btn-sm btn-outline-success" onclick="app.showAddToGroupModal(${contact.id})" title="Add to Group">
                             <i class="fas fa-users"></i>
                         </button>
@@ -1145,6 +1148,8 @@ class WABlastApp {
     updateBulkActionButtons() {
         const selectedCount = document.querySelectorAll('.contact-checkbox:checked').length;
         const bulkAddBtn = document.getElementById('bulkAddToGroupBtnMain');
+        const bulkEditBtn = document.getElementById('bulkEditBtnMain');
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtnMain');
 
         if (bulkAddBtn) {
             if (selectedCount > 0) {
@@ -1153,6 +1158,26 @@ class WABlastApp {
             } else {
                 bulkAddBtn.disabled = true;
                 bulkAddBtn.innerHTML = `<i class="fas fa-users me-1"></i>Add Selected to Group`;
+            }
+        }
+
+        if (bulkEditBtn) {
+            if (selectedCount > 0) {
+                bulkEditBtn.disabled = false;
+                bulkEditBtn.innerHTML = `<i class="fas fa-edit me-1"></i>Edit Selected (${selectedCount})`;
+            } else {
+                bulkEditBtn.disabled = true;
+                bulkEditBtn.innerHTML = `<i class="fas fa-edit me-1"></i>Edit Selected`;
+            }
+        }
+
+        if (bulkDeleteBtn) {
+            if (selectedCount > 0) {
+                bulkDeleteBtn.disabled = false;
+                bulkDeleteBtn.innerHTML = `<i class="fas fa-trash me-1"></i>Delete Selected (${selectedCount})`;
+            } else {
+                bulkDeleteBtn.disabled = true;
+                bulkDeleteBtn.innerHTML = `<i class="fas fa-trash me-1"></i>Delete Selected`;
             }
         }
     }
@@ -1181,6 +1206,241 @@ class WABlastApp {
         } catch (error) {
             console.error('Error deleting contact:', error);
             this.showAlert('Error deleting contact', 'danger');
+        }
+    }
+
+    // Show edit contact modal
+    showEditContactModal(contactId) {
+        const contact = this.contacts.find(c => c.id === contactId);
+        if (!contact) {
+            this.showAlert('Contact not found', 'danger');
+            return;
+        }
+
+        // Populate form fields
+        document.getElementById('editContactId').value = contact.id;
+        document.getElementById('editContactName').value = contact.name || '';
+        document.getElementById('editContactNumber').value = contact.number || '';
+        document.getElementById('editContactEmail').value = contact.email || '';
+        document.getElementById('editContactCompany').value = contact.company || '';
+        document.getElementById('editContactAddress').value = contact.address || '';
+        document.getElementById('editContactNotes').value = contact.notes || '';
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('editContactModal'));
+        modal.show();
+    }
+
+    // Save edited contact
+    async saveEditContact() {
+        try {
+            const contactId = parseInt(document.getElementById('editContactId').value);
+            const updates = {
+                name: document.getElementById('editContactName').value.trim(),
+                number: document.getElementById('editContactNumber').value.trim(),
+                email: document.getElementById('editContactEmail').value.trim(),
+                company: document.getElementById('editContactCompany').value.trim(),
+                address: document.getElementById('editContactAddress').value.trim(),
+                notes: document.getElementById('editContactNotes').value.trim()
+            };
+
+            if (!updates.name || !updates.number) {
+                this.showAlert('Name and phone number are required', 'danger');
+                return;
+            }
+
+            const response = await fetch(`/api/contacts/${contactId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(updates)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Update local contact
+                const contactIndex = this.contacts.findIndex(c => c.id === contactId);
+                if (contactIndex !== -1) {
+                    this.contacts[contactIndex] = { ...this.contacts[contactIndex], ...updates };
+                }
+
+                // Refresh display
+                this.displayContacts(this.contacts);
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editContactModal'));
+                modal.hide();
+
+                this.showAlert('Contact updated successfully', 'success');
+            } else {
+                const error = await response.json();
+                this.showAlert(error.error || 'Error updating contact', 'danger');
+            }
+        } catch (error) {
+            console.error('Error updating contact:', error);
+            this.showAlert('Error updating contact', 'danger');
+        }
+    }
+
+    // Show bulk edit modal
+    showBulkEditModal() {
+        const selectedContacts = this.getSelectedContacts();
+        if (selectedContacts.length === 0) {
+            this.showAlert('Please select contacts to edit', 'warning');
+            return;
+        }
+
+        // Clear form fields
+        document.getElementById('bulkEditEmail').value = '';
+        document.getElementById('bulkEditCompany').value = '';
+        document.getElementById('bulkEditAddress').value = '';
+        document.getElementById('bulkEditNotes').value = '';
+
+        // Update selected count
+        document.getElementById('bulkEditSelectedCount').textContent =
+            `${selectedContacts.length} contacts selected for bulk edit`;
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('bulkEditModal'));
+        modal.show();
+    }
+
+    // Save bulk edit
+    async saveBulkEdit() {
+        try {
+            const selectedContacts = this.getSelectedContacts();
+            if (selectedContacts.length === 0) {
+                this.showAlert('No contacts selected', 'warning');
+                return;
+            }
+
+            const updates = {};
+            const email = document.getElementById('bulkEditEmail').value.trim();
+            const company = document.getElementById('bulkEditCompany').value.trim();
+            const address = document.getElementById('bulkEditAddress').value.trim();
+            const notes = document.getElementById('bulkEditNotes').value.trim();
+
+            // Only include non-empty fields
+            if (email) updates.email = email;
+            if (company) updates.company = company;
+            if (address) updates.address = address;
+            if (notes) updates.notes = notes;
+
+            if (Object.keys(updates).length === 0) {
+                this.showAlert('Please fill in at least one field to update', 'warning');
+                return;
+            }
+
+            const contactIds = selectedContacts.map(c => c.id);
+
+            const response = await fetch('/api/contacts/bulk', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ contactIds, updates })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Update local contacts
+                selectedContacts.forEach(contact => {
+                    const contactIndex = this.contacts.findIndex(c => c.id === contact.id);
+                    if (contactIndex !== -1) {
+                        this.contacts[contactIndex] = { ...this.contacts[contactIndex], ...updates };
+                    }
+                });
+
+                // Refresh display
+                this.displayContacts(this.contacts);
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('bulkEditModal'));
+                modal.hide();
+
+                this.showAlert(`Successfully updated ${result.updatedCount} contacts`, 'success');
+            } else {
+                const error = await response.json();
+                this.showAlert(error.error || 'Error updating contacts', 'danger');
+            }
+        } catch (error) {
+            console.error('Error bulk updating contacts:', error);
+            this.showAlert('Error updating contacts', 'danger');
+        }
+    }
+
+    // Bulk delete contacts
+    async bulkDeleteContacts() {
+        try {
+            const selectedContacts = this.getSelectedContacts();
+            if (selectedContacts.length === 0) {
+                this.showAlert('Please select contacts to delete', 'warning');
+                return;
+            }
+
+            // Confirm deletion
+            const confirmed = await this.showConfirmDialog(
+                'Delete Contacts',
+                `Are you sure you want to delete ${selectedContacts.length} selected contacts? This action cannot be undone.`,
+                'danger'
+            );
+
+            if (!confirmed) return;
+
+            const contactIds = selectedContacts.map(c => c.id);
+
+            const response = await fetch('/api/contacts/bulk', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ contactIds })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+
+                // Remove deleted contacts from local array
+                this.contacts = this.contacts.filter(c => !contactIds.includes(c.id));
+
+                // Refresh display
+                this.displayContacts(this.contacts);
+                this.updateContactSummary({
+                    total: this.contacts.length,
+                    selected: this.contacts.filter(c => c.selected).length,
+                    invalid: 0
+                });
+
+                this.showAlert(`Successfully deleted ${result.deletedCount} contacts`, 'success');
+            } else {
+                const error = await response.json();
+                this.showAlert(error.error || 'Error deleting contacts', 'danger');
+            }
+        } catch (error) {
+            console.error('Error bulk deleting contacts:', error);
+            this.showAlert('Error deleting contacts', 'danger');
+        }
+    }
+
+    // Show confirmation dialog
+    async showConfirmDialog(title, message, type = 'warning') {
+        if (this.Toast && window.Swal) {
+            const result = await window.Swal.fire({
+                title: title,
+                text: message,
+                icon: type,
+                showCancelButton: true,
+                confirmButtonColor: type === 'danger' ? '#dc3545' : '#0d6efd',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, proceed',
+                cancelButtonText: 'Cancel'
+            });
+            return result.isConfirmed;
+        } else {
+            return confirm(`${title}\n\n${message}`);
         }
     }
 
@@ -2767,6 +3027,9 @@ function displayFilteredContacts(contacts) {
             </td>
             <td>
                 <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="app.showEditContactModal(${contact.id})" title="Edit Contact">
+                        <i class="fas fa-edit"></i>
+                    </button>
                     <button class="btn btn-sm btn-outline-success" onclick="app.showAddToGroupModal(${contact.id})" title="Add to Group">
                         <i class="fas fa-users"></i>
                     </button>

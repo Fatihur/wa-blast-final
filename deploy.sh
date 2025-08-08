@@ -61,7 +61,6 @@ sleep 10
 if docker-compose ps | grep -q "Up"; then
     print_status "✅ Application deployed successfully!"
     print_status "🌐 Access your application at: http://localhost:3000"
-    print_status "📊 Anti-Ban Dashboard: http://localhost:3000/anti-ban-dashboard.html"
     print_status "📁 File Matching: http://localhost:3000/file-matching.html"
     print_status "📋 Logs: http://localhost:3000/logs.html"
     echo ""
