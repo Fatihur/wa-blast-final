@@ -492,9 +492,17 @@ router.post('/save-validation', async (req, res) => {
         }
 
         // Store validation results in session or temporary storage
-        // For now, we'll just return success - in production you might want to store this
         req.session = req.session || {};
         req.session.validationResults = validationResults;
+        
+        // Also store validated contacts for use in blast
+        req.session.validatedContacts = [
+            ...(validationResults.confirmed || []),
+            ...(validationResults.changed || [])
+        ].map(item => ({
+            ...item.contact,
+            matchedFile: item.matchedFile
+        }));
 
         res.json({
             success: true,
@@ -550,36 +558,55 @@ router.post('/manual-assignment', async (req, res) => {
     try {
         const { contactId, contactName, fileName, assignmentType } = req.body;
 
-        console.log('Manual assignment request:', { contactId, contactName, fileName, assignmentType });
+        console.log('📝 Manual assignment request:', { contactId, contactName, fileName, assignmentType });
+        console.log('🔍 Session ID:', req.sessionID);
+        console.log('📋 Current manual assignments before update:', req.session?.manualAssignments || {});
 
         if (!contactName || !fileName) {
             return res.status(400).json({ error: 'Contact name and file name are required' });
         }
 
+        // Force refresh file cache to get latest files
+        fileMatchingService.clearFileCache();
         const files = await fileMatchingService.scanDocumentsFolder();
         const selectedFile = files.find(file => file.fileName === fileName);
 
         if (!selectedFile) {
-            return res.status(404).json({ error: 'Selected file not found' });
+            console.log('❌ File not found:', fileName);
+            console.log('📁 Available files:', files.map(f => f.fileName));
+            return res.status(404).json({ error: `Selected file "${fileName}" not found. Please refresh and try again.` });
         }
 
         // Store manual assignment in session
         req.session = req.session || {};
         req.session.manualAssignments = req.session.manualAssignments || {};
 
-        req.session.manualAssignments[contactName] = {
+        // Create assignment with fresh file data
+        const assignmentData = {
             fileName: selectedFile.fileName,
             fullPath: selectedFile.fullPath,
             extension: selectedFile.extension,
             size: selectedFile.size,
+            lastModified: selectedFile.lastModified,
             type: fileMatchingService.getFileType(selectedFile.extension),
             matchingMethod: 'manual_assignment',
             assignmentType: assignmentType || 'override', // 'override' or 'new'
             assignedAt: new Date().toISOString()
         };
 
-        console.log('Manual assignment stored:', req.session.manualAssignments[contactName]);
-        console.log('All manual assignments:', req.session.manualAssignments);
+        req.session.manualAssignments[contactName] = assignmentData;
+
+        console.log('✅ Manual assignment stored:', assignmentData);
+        console.log('📋 All manual assignments:', Object.keys(req.session.manualAssignments));
+
+        // Force save session to ensure persistence
+        req.session.save((err) => {
+            if (err) {
+                console.error('❌ Error saving session:', err);
+            } else {
+                console.log('✅ Session saved successfully');
+            }
+        });
 
         res.json({
             success: true,
@@ -588,7 +615,9 @@ router.post('/manual-assignment', async (req, res) => {
                 contactName,
                 fileName: selectedFile.fileName,
                 matchingMethod: 'manual_assignment'
-            }
+            },
+            // Include the full assignment data for immediate frontend update
+            assignmentData: assignmentData
         });
     } catch (error) {
         console.error('Error in manual assignment:', error);
@@ -601,7 +630,8 @@ router.delete('/manual-assignment/:contactName', async (req, res) => {
     try {
         const { contactName } = req.params;
 
-        console.log('Remove manual assignment request for:', contactName);
+        console.log('🗑️ Remove manual assignment request for:', contactName);
+        console.log('🔍 Session ID:', req.sessionID);
 
         if (!contactName) {
             return res.status(400).json({ error: 'Contact name is required' });
@@ -611,16 +641,34 @@ router.delete('/manual-assignment/:contactName', async (req, res) => {
         req.session = req.session || {};
         req.session.manualAssignments = req.session.manualAssignments || {};
 
-        if (req.session.manualAssignments[contactName]) {
+        const removedAssignment = req.session.manualAssignments[contactName];
+
+        if (removedAssignment) {
             delete req.session.manualAssignments[contactName];
-            console.log('Manual assignment removed for:', contactName);
-            console.log('Remaining assignments:', Object.keys(req.session.manualAssignments));
+            console.log('✅ Manual assignment removed for:', contactName);
+            console.log('📁 Removed file:', removedAssignment.fileName);
+            console.log('📋 Remaining assignments:', Object.keys(req.session.manualAssignments));
+        } else {
+            console.log('⚠️ No manual assignment found for:', contactName);
         }
+
+        // Force save session to ensure persistence
+        req.session.save((err) => {
+            if (err) {
+                console.error('❌ Error saving session:', err);
+            } else {
+                console.log('✅ Session saved successfully after removal');
+            }
+        });
+
+        // Clear file cache to ensure fresh data on next request
+        fileMatchingService.clearFileCache();
 
         res.json({
             success: true,
             message: 'Manual assignment removed successfully',
-            contactName: contactName
+            contactName: contactName,
+            removedFile: removedAssignment?.fileName || null
         });
     } catch (error) {
         console.error('Error removing manual assignment:', error);
@@ -671,13 +719,41 @@ router.get('/search-files', async (req, res) => {
 router.get('/enhanced-preview', async (req, res) => {
     try {
         const contacts = contactStorage.getSelectedContacts();
+
+        // Force refresh file cache to ensure we have the latest files
+        fileMatchingService.clearFileCache();
         const files = await fileMatchingService.scanDocumentsFolder();
 
         // Get stored preferences and manual assignments
         const sendingPreferences = req.session?.sendingPreferences || {};
         const manualAssignments = req.session?.manualAssignments || {};
 
-        console.log('Enhanced preview - manual assignments:', manualAssignments);
+        console.log('🔍 Enhanced preview - Session ID:', req.sessionID);
+        console.log('📋 Enhanced preview - manual assignments:', manualAssignments);
+        console.log('⚙️ Enhanced preview - sending preferences:', sendingPreferences);
+        console.log('👥 Enhanced preview - selected contacts:', contacts.length);
+        console.log('📁 Enhanced preview - available files:', files.map(f => f.fileName));
+
+        // Validate and clean up manual assignments - remove assignments for files that no longer exist
+        const validatedManualAssignments = {};
+        for (const [contactName, assignment] of Object.entries(manualAssignments)) {
+            const fileExists = files.find(f => f.fileName === assignment.fileName);
+            if (fileExists) {
+                // Update assignment with current file info to ensure data is fresh
+                validatedManualAssignments[contactName] = {
+                    ...assignment,
+                    fullPath: fileExists.fullPath,
+                    size: fileExists.size,
+                    lastModified: fileExists.lastModified
+                };
+                console.log(`✅ Manual assignment validated for ${contactName}: ${assignment.fileName}`);
+            } else {
+                console.log(`⚠️ Manual assignment removed for ${contactName}: file ${assignment.fileName} no longer exists`);
+            }
+        }
+
+        // Update session with validated assignments
+        req.session.manualAssignments = validatedManualAssignments;
 
         // Create enhanced preview
         const enhancedPreview = contacts.map(contact => {
@@ -688,30 +764,42 @@ router.get('/enhanced-preview', async (req, res) => {
             let matchingMethod = '';
             let sendingEnabled = true; // Default to enabled
 
-            // Check for manual assignment first
-            if (manualAssignments[contactName]) {
-                console.log(`Found manual assignment for contact: ${contactName}`);
-                const assignment = manualAssignments[contactName];
+            // Check for manual assignment first (using validated assignments)
+            console.log(`🔍 Checking manual assignment for contact: "${contactName}"`);
+            console.log(`📋 Available manual assignments:`, Object.keys(validatedManualAssignments));
+
+            if (validatedManualAssignments[contactName]) {
+                console.log(`✅ Found manual assignment for contact: ${contactName}`);
+                const assignment = validatedManualAssignments[contactName];
+                console.log(`📁 Manual assignment details:`, assignment);
+
                 matchedFile = {
                     fileName: assignment.fileName,
                     fullPath: assignment.fullPath,
                     extension: assignment.extension,
                     size: assignment.size,
-                    type: assignment.type
+                    type: assignment.type,
+                    lastModified: assignment.lastModified
                 };
                 matchingMethod = 'manual_assignment';
                 sendingEnabled = true; // Manual assignments are always enabled
+
+                console.log(`✅ Manual assignment applied: ${assignment.fileName}`);
+            } else {
+                console.log(`❌ No manual assignment found for contact: "${contactName}"`);
             }
-            // Try specified filename (backward compatibility)
-            else if (specifiedFileName) {
+
+            // Try specified filename (backward compatibility) - only if no manual assignment
+            if (!matchedFile && specifiedFileName) {
                 matchedFile = fileMatchingService.findMatchingFile(specifiedFileName, files);
                 if (matchedFile) {
                     matchingMethod = 'specified_filename';
                     sendingEnabled = true; // Specified files are always enabled
                 }
             }
-            // Try contact name matching
-            else if (contactName) {
+
+            // Try contact name matching - only if no manual assignment and no specified file
+            if (!matchedFile && contactName) {
                 matchedFile = fileMatchingService.findMatchingFileByName(contactName, files);
                 if (matchedFile) {
                     matchingMethod = 'contact_name';

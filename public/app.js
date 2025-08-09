@@ -6,9 +6,29 @@ class WABlastApp {
         this.contacts = [];
         this.headers = [];
         this.groups = [];
-        this.isConnected = false;
+        
+        // Load saved connection status
+        const savedStatus = localStorage.getItem('whatsappStatus');
+        if (savedStatus) {
+            try {
+                const status = JSON.parse(savedStatus);
+                this.isConnected = status.isConnected;
+                console.log('Loaded saved connection status:', status);
+            } catch (e) {
+                console.error('Error parsing saved status:', e);
+                this.isConnected = localStorage.getItem('whatsappConnected') === 'true';
+            }
+        } else {
+            this.isConnected = localStorage.getItem('whatsappConnected') === 'true';
+        }
+        
         this.isDesktop = window.electronAPI ? true : false;
         this.init();
+        
+        console.log('Initial connection status:', {
+            isConnected: this.isConnected,
+            storedValue: localStorage.getItem('whatsappConnected')
+        });
     }
 
     init() {
@@ -65,18 +85,27 @@ class WABlastApp {
     }
 
     setupEventListeners() {
-        // Connection buttons
-        document.getElementById('connectBtn').addEventListener('click', () => {
-            this.connectWhatsApp();
-        });
+        // Connection buttons (only if they exist - they're on the connection page)
+        const connectBtn = document.getElementById('connectBtn');
+        if (connectBtn) {
+            connectBtn.addEventListener('click', () => {
+                this.connectWhatsApp();
+            });
+        }
 
-        document.getElementById('newConnectionBtn').addEventListener('click', () => {
-            this.forceNewConnection();
-        });
+        const newConnectionBtn = document.getElementById('newConnectionBtn');
+        if (newConnectionBtn) {
+            newConnectionBtn.addEventListener('click', () => {
+                this.forceNewConnection();
+            });
+        }
 
-        document.getElementById('disconnectBtn').addEventListener('click', () => {
-            this.disconnectWhatsApp();
-        });
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        if (disconnectBtn) {
+            disconnectBtn.addEventListener('click', () => {
+                this.disconnectWhatsApp();
+            });
+        }
 
         // Message type change
         document.getElementById('singleType').addEventListener('change', (e) => {
@@ -166,11 +195,37 @@ class WABlastApp {
 
     async checkConnectionStatus() {
         try {
-            const response = await fetch('/api/messages/status');
-            const status = await response.json();
-            this.updateConnectionStatus(status);
+            // Check if we have stored full status
+            const savedStatus = localStorage.getItem('whatsappStatus');
+            const shouldCheck = !savedStatus || document.getElementById('connectionStatus');
+            
+            console.log('Checking connection status:', {
+                savedStatus: savedStatus ? 'exists' : 'none',
+                shouldCheck,
+                hasConnectionElement: !!document.getElementById('connectionStatus')
+            });
+            
+            if (shouldCheck) {
+                const response = await fetch('/api/messages/status');
+                const status = await response.json();
+                this.updateConnectionStatus(status);
+            } else {
+                // Use stored status
+                try {
+                    const status = JSON.parse(savedStatus);
+                    console.log('Using stored status:', status);
+                    this.updateConnectionStatus(status);
+                } catch (e) {
+                    console.error('Error parsing stored status, fetching fresh:', e);
+                    const response = await fetch('/api/messages/status');
+                    const status = await response.json();
+                    this.updateConnectionStatus(status);
+                }
+            }
         } catch (error) {
             console.error('Error checking status:', error);
+            // On error, clear stored status to force fresh check next time
+            localStorage.removeItem('whatsappStatus');
         }
     }
 
@@ -241,7 +296,30 @@ class WABlastApp {
     }
 
     updateConnectionStatus(status) {
+        const prevStatus = this.isConnected;
         this.isConnected = status.isConnected;
+        
+        // Store connection status in localStorage and verify it's stored
+        localStorage.setItem('whatsappConnected', status.isConnected);
+        const stored = localStorage.getItem('whatsappConnected');
+        console.log('Connection status stored:', {
+            new: status.isConnected,
+            stored: stored,
+            verified: stored === String(status.isConnected)
+        });
+        
+        // Status changed event
+        if (prevStatus !== status.isConnected) {
+            if (status.isConnected) {
+                // Connected: store the full status
+                localStorage.setItem('whatsappStatus', JSON.stringify(status));
+            } else {
+                // Disconnected: clear stored status
+                localStorage.removeItem('whatsappStatus');
+            }
+        }
+
+        // Get DOM elements - they may not exist on all pages
         const statusElement = document.getElementById('connectionStatus');
         const connectBtn = document.getElementById('connectBtn');
         const newConnectionBtn = document.getElementById('newConnectionBtn');
@@ -250,40 +328,49 @@ class WABlastApp {
         const qrPlaceholder = document.getElementById('qrPlaceholder');
         const messageElement = document.getElementById('connectionMessage');
 
-        // Update status display
-        if (status.isConnected) {
-            statusElement.innerHTML = '<i class="fas fa-circle text-success me-1"></i>Connected';
-            connectBtn.style.display = 'none';
-            newConnectionBtn.style.display = 'block';
-            disconnectBtn.style.display = 'block';
-            qrCodeImage.style.display = 'none';
-            qrPlaceholder.style.display = 'block';
-            qrPlaceholder.innerHTML = '<i class="fas fa-check-circle fa-3x text-success"></i><p class="mt-2 text-success">WhatsApp Connected!</p>';
-            messageElement.innerHTML = '<div class="alert alert-success">WhatsApp connected successfully! <br><small class="text-muted">Use "New QR Code" to connect a different WhatsApp account.</small></div>';
-        } else if (status.status === 'connecting') {
-            statusElement.innerHTML = '<i class="fas fa-circle text-warning me-1"></i>Connecting...';
-            connectBtn.style.display = 'none';
-            newConnectionBtn.style.display = 'none';
-            disconnectBtn.style.display = 'block';
-            messageElement.innerHTML = '<div class="alert alert-info">Connecting to WhatsApp...</div>';
-        } else if (status.status === 'qr-ready' && status.qrCode) {
-            statusElement.innerHTML = '<i class="fas fa-circle text-warning me-1"></i>Scan QR Code';
-            connectBtn.style.display = 'none';
-            newConnectionBtn.style.display = 'block';
-            disconnectBtn.style.display = 'block';
-            qrPlaceholder.style.display = 'none';
-            qrCodeImage.src = status.qrCode;
-            qrCodeImage.style.display = 'block';
-            messageElement.innerHTML = '<div class="alert alert-warning">Please scan the QR code with your WhatsApp mobile app <br><small class="text-muted">Click "New QR Code" to generate a fresh QR code.</small></div>';
-        } else {
-            statusElement.innerHTML = '<i class="fas fa-circle text-danger me-1"></i>Disconnected';
-            connectBtn.style.display = 'block';
-            newConnectionBtn.style.display = 'block'; // Always show when disconnected
-            disconnectBtn.style.display = 'none';
-            qrCodeImage.style.display = 'none';
-            qrPlaceholder.style.display = 'block';
-            qrPlaceholder.innerHTML = '<i class="fas fa-qrcode fa-3x text-muted"></i><p class="mt-2 text-muted">Click connect to generate QR code</p>';
-            messageElement.innerHTML = '<div class="alert alert-info">Choose: <strong>Connect WhatsApp</strong> (use existing session) or <strong>New QR Code</strong> (fresh session for different WhatsApp)</div>';
+        // Only update UI elements if they exist (connection page)
+        if (statusElement) {
+            // Update status display
+            if (status.isConnected) {
+                statusElement.innerHTML = '<i class="fas fa-circle text-success me-1"></i>Connected';
+                if (connectBtn) connectBtn.style.display = 'none';
+                if (newConnectionBtn) newConnectionBtn.style.display = 'block';
+                if (disconnectBtn) disconnectBtn.style.display = 'block';
+                if (qrCodeImage) qrCodeImage.style.display = 'none';
+                if (qrPlaceholder) {
+                    qrPlaceholder.style.display = 'block';
+                    qrPlaceholder.innerHTML = '<i class="fas fa-check-circle fa-3x text-success"></i><p class="mt-2 text-success">WhatsApp Connected!</p>';
+                }
+                if (messageElement) messageElement.innerHTML = '<div class="alert alert-success">WhatsApp connected successfully! <br><small class="text-muted">Use "New QR Code" to connect a different WhatsApp account.</small></div>';
+            } else if (status.status === 'connecting') {
+                statusElement.innerHTML = '<i class="fas fa-circle text-warning me-1"></i>Connecting...';
+                if (connectBtn) connectBtn.style.display = 'none';
+                if (newConnectionBtn) newConnectionBtn.style.display = 'none';
+                if (disconnectBtn) disconnectBtn.style.display = 'block';
+                if (messageElement) messageElement.innerHTML = '<div class="alert alert-info">Connecting to WhatsApp...</div>';
+            } else if (status.status === 'qr-ready' && status.qrCode) {
+                statusElement.innerHTML = '<i class="fas fa-circle text-warning me-1"></i>Scan QR Code';
+                if (connectBtn) connectBtn.style.display = 'none';
+                if (newConnectionBtn) newConnectionBtn.style.display = 'block';
+                if (disconnectBtn) disconnectBtn.style.display = 'block';
+                if (qrPlaceholder) qrPlaceholder.style.display = 'none';
+                if (qrCodeImage) {
+                    qrCodeImage.src = status.qrCode;
+                    qrCodeImage.style.display = 'block';
+                }
+                if (messageElement) messageElement.innerHTML = '<div class="alert alert-warning">Please scan the QR code with your WhatsApp mobile app <br><small class="text-muted">Click "New QR Code" to generate a fresh QR code.</small></div>';
+            } else {
+                statusElement.innerHTML = '<i class="fas fa-circle text-danger me-1"></i>Disconnected';
+                if (connectBtn) connectBtn.style.display = 'block';
+                if (newConnectionBtn) newConnectionBtn.style.display = 'block'; // Always show when disconnected
+                if (disconnectBtn) disconnectBtn.style.display = 'none';
+                if (qrCodeImage) qrCodeImage.style.display = 'none';
+                if (qrPlaceholder) {
+                    qrPlaceholder.style.display = 'block';
+                    qrPlaceholder.innerHTML = '<i class="fas fa-qrcode fa-3x text-muted"></i><p class="mt-2 text-muted">Click connect to generate QR code</p>';
+                }
+                if (messageElement) messageElement.innerHTML = '<div class="alert alert-info">Choose: <strong>Connect WhatsApp</strong> (use existing session) or <strong>New QR Code</strong> (fresh session for different WhatsApp)</div>';
+            }
         }
 
         this.hideLoading();
@@ -1191,7 +1278,7 @@ class WABlastApp {
     }
 
     getSelectedContacts() {
-        return this.contacts.filter(contact => contact.selected !== false);
+        return this.contacts.filter(contact => contact.selected === true);
     }
 
     async removeContact(contactId) {

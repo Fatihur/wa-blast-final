@@ -1,0 +1,34 @@
+/* Aggressive backdrop hiding */
+.modal-backdrop.fade:not(.show) {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Hide backdrop when body doesn't have modal-open class */
+body:not(.modal-open) .modal-backdrop {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Fast transition to prevent lingering */
+.modal-backdrop.fade {
+    transition: opacity 0.05s linear !important;
+}
+
+/* Force hide any backdrop without show class */
+.modal-backdrop:not(.show) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+/* Additional safety - hide any backdrop when no modal is active */
+.modal-backdrop {
+    z-index: -1 !important;
+}
+
+body.modal-open .modal-backdrop.show {
+    z-index: 1040 !important;
+}

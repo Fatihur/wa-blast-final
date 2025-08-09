@@ -1,14 +1,29 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Helper function to handle IPC invocations with timeout
+async function invokeWithTimeout(channel, ...args) {
+    try {
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`IPC ${channel} timed out after 5000ms`)), 5000);
+        });
+        const responsePromise = ipcRenderer.invoke(channel, ...args);
+        const response = await Promise.race([responsePromise, timeoutPromise]);
+        return response;
+    } catch (error) {
+        console.error(`Error in IPC ${channel}:`, error);
+        throw error;
+    }
+}
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
     // Notification API
-    showNotification: (title, body) => ipcRenderer.invoke('show-notification', title, body),
+    showNotification: (title, body) => invokeWithTimeout('show-notification', title, body),
     
     // Dialog API
-    showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
-    showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
+    showSaveDialog: (options) => invokeWithTimeout('show-save-dialog', options),
+    showOpenDialog: (options) => invokeWithTimeout('show-open-dialog', options),
     
     // Menu actions
     onMenuAction: (callback) => ipcRenderer.on('menu-action', callback),
@@ -28,7 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 { name: 'All Files', extensions: ['*'] }
             ]
         };
-        return await ipcRenderer.invoke('show-open-dialog', { ...defaultOptions, ...options });
+        return await invokeWithTimeout('show-open-dialog', { ...defaultOptions, ...options });
     },
     
     selectMultipleFiles: async (options = {}) => {
@@ -40,11 +55,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 { name: 'All Files', extensions: ['*'] }
             ]
         };
-        return await ipcRenderer.invoke('show-open-dialog', { ...defaultOptions, ...options });
+        return await invokeWithTimeout('show-open-dialog', { ...defaultOptions, ...options });
     },
     
     selectFolder: async () => {
-        return await ipcRenderer.invoke('show-open-dialog', {
+        return await invokeWithTimeout('show-open-dialog', {
             properties: ['openDirectory']
         });
     },
@@ -57,30 +72,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
                 { name: 'All Files', extensions: ['*'] }
             ]
         };
-        return await ipcRenderer.invoke('show-save-dialog', { ...defaultOptions, ...options });
+        return await invokeWithTimeout('show-save-dialog', { ...defaultOptions, ...options });
     }
 });
 
 // Enhanced notification system for desktop
 contextBridge.exposeInMainWorld('desktopNotifications', {
     success: (title, message) => {
-        ipcRenderer.invoke('show-notification', title || 'Success', message);
+        invokeWithTimeout('show-notification', title || 'Success', message);
     },
     
     error: (title, message) => {
-        ipcRenderer.invoke('show-notification', title || 'Error', message);
+        invokeWithTimeout('show-notification', title || 'Error', message);
     },
     
     info: (title, message) => {
-        ipcRenderer.invoke('show-notification', title || 'Information', message);
+        invokeWithTimeout('show-notification', title || 'Information', message);
     },
     
     warning: (title, message) => {
-        ipcRenderer.invoke('show-notification', title || 'Warning', message);
+        invokeWithTimeout('show-notification', title || 'Warning', message);
     },
     
     blast: (title, message) => {
-        ipcRenderer.invoke('show-notification', title || 'Blast Update', message);
+        invokeWithTimeout('show-notification', title || 'Blast Update', message);
     }
 });
 

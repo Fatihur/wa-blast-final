@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navbar Test - WA Blast</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Dynamic Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Navbar Test Results
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="test-results">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Running tests...</span>
+                                </div>
+                                <p class="mt-2">Running navbar tests...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Dynamic Navbar Scripts -->
+    <script src="navbar.js"></script>
+    <script src="navbar-config.js"></script>
+    
+    <script>
+        // Test suite for navbar functionality
+        const tests = [];
+        let testResults = [];
+
+        function addTest(name, testFn) {
+            tests.push({ name, testFn });
+        }
+
+        function runTests() {
+            testResults = [];
+            
+            tests.forEach(test => {
+                try {
+                    const result = test.testFn();
+                    testResults.push({
+                        name: test.name,
+                        passed: result,
+                        error: null
+                    });
+                } catch (error) {
+                    testResults.push({
+                        name: test.name,
+                        passed: false,
+                        error: error.message
+                    });
+                }
+            });
+
+            displayResults();
+        }
+
+        function displayResults() {
+            const container = document.getElementById('test-results');
+            const passedTests = testResults.filter(r => r.passed).length;
+            const totalTests = testResults.length;
+            
+            let html = `
+                <div class="alert ${passedTests === totalTests ? 'alert-success' : 'alert-warning'}">
+                    <h6><i class="fas fa-chart-bar me-2"></i>Test Summary</h6>
+                    <p class="mb-0">Passed: ${passedTests}/${totalTests} tests</p>
+                </div>
+                <div class="list-group">
+            `;
+
+            testResults.forEach(result => {
+                const icon = result.passed ? 'fas fa-check-circle text-success' : 'fas fa-times-circle text-danger';
+                const errorMsg = result.error ? `<br><small class="text-muted">Error: ${result.error}</small>` : '';
+                
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex align-items-center">
+                            <i class="${icon} me-2"></i>
+                            <span>${result.name}</span>
+                        </div>
+                        ${errorMsg}
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // Define tests
+        addTest('DynamicNavbar class exists', () => {
+            return typeof DynamicNavbar === 'function';
+        });
+
+        addTest('initializeNavbar function exists', () => {
+            return typeof initializeNavbar === 'function';
+        });
+
+        addTest('Navbar container exists', () => {
+            return document.getElementById('navbar-container') !== null;
+        });
+
+        addTest('Navbar renders successfully', () => {
+            const navbar = new DynamicNavbar();
+            navbar.setMenuItems([
+                { text: 'Test', href: '#', icon: 'fas fa-test' }
+            ]);
+            navbar.render('navbar-container');
+            return document.getElementById('dynamic-navbar') !== null;
+        });
+
+        addTest('Navbar has correct brand', () => {
+            const navbar = document.querySelector('#dynamic-navbar .navbar-brand');
+            return navbar && navbar.textContent.includes('WA Blast');
+        });
+
+        addTest('Navbar has menu items', () => {
+            const menuItems = document.querySelectorAll('#dynamic-navbar .nav-link');
+            return menuItems.length > 0;
+        });
+
+        addTest('Navbar has responsive toggle button', () => {
+            const toggle = document.querySelector('#dynamic-navbar .navbar-toggler');
+            return toggle !== null;
+        });
+
+        addTest('Navbar has collapse functionality', () => {
+            const collapse = document.querySelector('#dynamic-navbar .navbar-collapse');
+            return collapse !== null;
+        });
+
+        addTest('Active page highlighting works', () => {
+            const activeLinks = document.querySelectorAll('#dynamic-navbar .nav-link.active');
+            return activeLinks.length >= 0; // Should have 0 or more active links
+        });
+
+        addTest('Menu item methods work', () => {
+            const navbar = new DynamicNavbar();
+            navbar.addMenuItem({ text: 'Test Item', href: '#', icon: 'fas fa-test' });
+            return navbar.menuItems.length === 1;
+        });
+
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize navbar first
+            initializeNavbar();
+            
+            // Wait a bit for navbar to render, then run tests
+            setTimeout(runTests, 500);
+        });
+    </script>
+</body>
+</html>

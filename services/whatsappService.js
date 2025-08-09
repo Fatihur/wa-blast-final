@@ -73,6 +73,16 @@ class WhatsAppService {
                     this.qrCode = null;
                     this.emitStatus();
 
+                    // Emit connection-error event for statistics tracking
+                    if (this.io && lastDisconnect?.error) {
+                        this.io.emit('connection-error', {
+                            error: lastDisconnect.error.message,
+                            type: 'connection-close',
+                            shouldReconnect: shouldReconnect,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+
                     if (shouldReconnect) {
                         await logger.whatsapp('Attempting to reconnect in 3 seconds');
                         setTimeout(() => this.connect(), 3000);
@@ -92,6 +102,15 @@ class WhatsAppService {
             await logger.error('Error connecting to WhatsApp', error);
             this.connectionStatus = 'error';
             this.emitStatus();
+
+            // Emit connection-error event for statistics tracking
+            if (this.io) {
+                this.io.emit('connection-error', {
+                    error: error.message,
+                    type: 'connection-init-error',
+                    timestamp: new Date().toISOString()
+                });
+            }
         }
     }
 
@@ -173,6 +192,15 @@ class WhatsAppService {
             await logger.error('Error forcing new connection', error);
             this.connectionStatus = 'error';
             this.emitStatus();
+
+            // Emit connection-error event for statistics tracking
+            if (this.io) {
+                this.io.emit('connection-error', {
+                    error: error.message,
+                    type: 'force-connection-error',
+                    timestamp: new Date().toISOString()
+                });
+            }
         }
     }
 
@@ -256,9 +284,31 @@ class WhatsAppService {
             }
 
             await logger.whatsapp(`Message sent successfully to ${number}`, { messageId: result.key.id });
+
+            // Emit message-sent event for statistics tracking
+            if (this.io) {
+                this.io.emit('message-sent', {
+                    number: number,
+                    messageId: result.key.id,
+                    type: options.type || 'text',
+                    timestamp: new Date().toISOString()
+                });
+            }
+
             return result;
         } catch (error) {
             await logger.error(`Error sending message to ${number}`, error);
+
+            // Emit connection-error event for statistics tracking
+            if (this.io) {
+                this.io.emit('connection-error', {
+                    number: number,
+                    error: error.message,
+                    type: 'message-send-error',
+                    timestamp: new Date().toISOString()
+                });
+            }
+
             throw error;
         }
     }

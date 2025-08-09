@@ -322,6 +322,7 @@ router.post('/blast-with-files', async (req, res) => {
         }
 
         let matchedContacts = [];
+        let matchingResult = null;
 
         // Check if we have pre-validated contacts (new validation flow)
         if (validatedContacts && Array.isArray(validatedContacts) && validatedContacts.length > 0) {
@@ -333,6 +334,17 @@ router.post('/blast-with-files', async (req, res) => {
 
             // Use validated contacts directly
             matchedContacts = validatedContacts;
+
+            // Create a mock matchingResult for validated contacts
+            matchingResult = {
+                matched: validatedContacts,
+                unmatched: [],
+                statistics: {
+                    total: validatedContacts.length,
+                    matched: validatedContacts.length,
+                    unmatched: 0
+                }
+            };
 
             await logger.blast(`Using pre-validated contacts`, {
                 validatedCount: validatedContacts.length
@@ -358,7 +370,7 @@ router.post('/blast-with-files', async (req, res) => {
                 } : null
             });
 
-            const matchingResult = await fileMatchingService.matchContactsWithFiles(contacts);
+            matchingResult = await fileMatchingService.matchContactsWithFiles(contacts);
 
             await logger.blast(`File matching completed`, {
                 matched: matchingResult.matched.length,
@@ -557,7 +569,7 @@ router.post('/blast-with-files', async (req, res) => {
             });
 
             // Add delay between messages
-            if (i < matchingResult.matched.length - 1) {
+            if (i < matchedContacts.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
@@ -608,6 +620,36 @@ router.post('/blast-with-files', async (req, res) => {
 // Get WhatsApp status
 router.get('/status', (req, res) => {
     res.json(whatsappService.getStatus());
+});
+
+// Connect WhatsApp (generate QR code)
+router.post('/connect', async (req, res) => {
+    try {
+        const { fresh = false } = req.body;
+
+        await logger.info('Connect requested', { fresh });
+
+        if (fresh) {
+            await whatsappService.forceNewConnection();
+        } else {
+            // Check if already connected
+            if (whatsappService.isReady()) {
+                return res.json({
+                    success: true,
+                    message: 'WhatsApp is already connected',
+                    connected: true
+                });
+            }
+
+            // Start connection process
+            await whatsappService.connect();
+        }
+
+        res.json({ success: true, message: 'Generating QR code...' });
+    } catch (error) {
+        await logger.error('Error connecting', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // Force new connection with fresh QR

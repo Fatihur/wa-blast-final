@@ -25,34 +25,43 @@ class FileMatchingService {
     /**
      * Scan documents folder and return available files
      */
-    async scanDocumentsFolder() {
+    async scanDocumentsFolder(forceRefresh = false) {
         try {
-            // Check if cache is valid
+            // Check if cache is valid (unless force refresh is requested)
             const now = Date.now();
-            if (this.fileCache && this.cacheTimestamp && (now - this.cacheTimestamp) < this.cacheTimeout) {
+            if (!forceRefresh && this.fileCache && this.cacheTimestamp && (now - this.cacheTimestamp) < this.cacheTimeout) {
+                console.log('📁 Using cached file list');
                 return this.fileCache;
             }
 
+            console.log('📁 Scanning documents folder (force refresh:', forceRefresh, ')');
             const files = await fs.readdir(this.documentsFolder);
             const fileList = [];
 
             for (const file of files) {
                 const filePath = path.join(this.documentsFolder, file);
-                const stats = await fs.stat(filePath);
 
-                if (stats.isFile()) {
-                    const ext = path.extname(file).toLowerCase();
-                    const nameWithoutExt = path.basename(file, ext);
+                try {
+                    const stats = await fs.stat(filePath);
 
-                    fileList.push({
-                        fileName: file,
-                        nameWithoutExt: nameWithoutExt,
-                        extension: ext,
-                        fullPath: filePath,
-                        size: stats.size,
-                        lastModified: stats.mtime,
-                        isSupported: this.supportedExtensions.includes(ext)
-                    });
+                    if (stats.isFile()) {
+                        const ext = path.extname(file).toLowerCase();
+                        const nameWithoutExt = path.basename(file, ext);
+
+                        fileList.push({
+                            fileName: file,
+                            nameWithoutExt: nameWithoutExt,
+                            extension: ext,
+                            fullPath: filePath,
+                            size: stats.size,
+                            lastModified: stats.mtime,
+                            isSupported: this.supportedExtensions.includes(ext)
+                        });
+                    }
+                } catch (statError) {
+                    console.warn(`⚠️ Could not stat file ${file}:`, statError.message);
+                    // Skip files that can't be accessed
+                    continue;
                 }
             }
 
@@ -61,9 +70,11 @@ class FileMatchingService {
             this.cacheTimestamp = now;
 
             await logger.info(`Scanned documents folder: ${fileList.length} files found`);
+            console.log('📁 Files found:', fileList.map(f => f.fileName));
             return fileList;
         } catch (error) {
             await logger.error('Error scanning documents folder', error);
+            console.error('❌ Error scanning documents folder:', error);
             return [];
         }
     }
@@ -74,6 +85,50 @@ class FileMatchingService {
     clearFileCache() {
         this.fileCache = null;
         this.cacheTimestamp = null;
+        console.log('🗑️ File cache cleared');
+    }
+
+    /**
+     * Validate if a file exists in the documents folder
+     */
+    async validateFileExists(fileName) {
+        try {
+            const filePath = path.join(this.documentsFolder, fileName);
+            const stats = await fs.stat(filePath);
+            return stats.isFile();
+        } catch (error) {
+            console.log(`❌ File validation failed for ${fileName}:`, error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Get fresh file information for a specific file
+     */
+    async getFileInfo(fileName) {
+        try {
+            const filePath = path.join(this.documentsFolder, fileName);
+            const stats = await fs.stat(filePath);
+
+            if (stats.isFile()) {
+                const ext = path.extname(fileName).toLowerCase();
+                const nameWithoutExt = path.basename(fileName, ext);
+
+                return {
+                    fileName: fileName,
+                    nameWithoutExt: nameWithoutExt,
+                    extension: ext,
+                    fullPath: filePath,
+                    size: stats.size,
+                    lastModified: stats.mtime,
+                    isSupported: this.supportedExtensions.includes(ext)
+                };
+            }
+            return null;
+        } catch (error) {
+            console.log(`❌ Could not get file info for ${fileName}:`, error.message);
+            return null;
+        }
     }
 
     /**

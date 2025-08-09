@@ -63,34 +63,46 @@ class FileMatchingApp {
     }
 
     setupValidationEventListeners() {
-        // Confirm match button
-        const confirmBtn = document.getElementById('confirmMatchBtn');
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => this.confirmCurrentMatch());
+        // Skip all button
+        const skipAllBtn = document.getElementById('skipAllBtn');
+        if (skipAllBtn) {
+            skipAllBtn.onclick = () => this.skipAllAutoMatches();
         }
 
-        // Skip contact button
-        const skipBtn = document.getElementById('skipContactBtn');
-        if (skipBtn) {
-            skipBtn.addEventListener('click', () => this.skipCurrentContact());
+        // Skip current button
+        const skipCurrentBtn = document.getElementById('skipCurrentBtn');
+        if (skipCurrentBtn) {
+            skipCurrentBtn.onclick = () => this.skipCurrentContact();
         }
 
         // Change file button
-        const changeBtn = document.getElementById('changeFileBtn');
-        if (changeBtn) {
-            changeBtn.addEventListener('click', () => this.showFileSelectionModal());
+        const changeFileBtn = document.getElementById('changeFileBtn');
+        if (changeFileBtn) {
+            changeFileBtn.onclick = () => this.showFileSelectionModal();
         }
 
-        // File search input
-        const fileSearchInput = document.getElementById('fileSearchInput');
-        if (fileSearchInput) {
-            fileSearchInput.addEventListener('input', (e) => this.filterFileSelection(e.target.value));
+        // Confirm current button
+        const confirmCurrentBtn = document.getElementById('confirmCurrentBtn');
+        if (confirmCurrentBtn) {
+            confirmCurrentBtn.onclick = () => this.confirmCurrentMatch();
         }
 
-        // Proceed with sending button
-        const proceedBtn = document.getElementById('proceedWithSendingBtn');
+        // Proceed with validated button
+        const proceedBtn = document.getElementById('proceedWithValidatedBtn');
         if (proceedBtn) {
-            proceedBtn.addEventListener('click', () => this.proceedWithValidatedSending());
+            proceedBtn.onclick = () => this.proceedWithValidated();
+        }
+
+        // File search in modal
+        const fileSearchInput = document.getElementById('validationFileSearch');
+        if (fileSearchInput) {
+            fileSearchInput.oninput = (e) => this.filterValidationFiles(e.target.value);
+        }
+
+        // Proceed with sending button (in validation summary modal)
+        const proceedWithSendingBtn = document.getElementById('proceedWithSendingBtn');
+        if (proceedWithSendingBtn) {
+            proceedWithSendingBtn.addEventListener('click', () => this.proceedWithValidatedSending());
         }
     }
 
@@ -240,10 +252,27 @@ class FileMatchingApp {
         try {
             this.showLoading('Analyzing file matching...');
 
-            const response = await fetch('/api/file-matching/enhanced-preview');
+            // Add cache-busting parameter to ensure fresh data
+            const timestamp = new Date().getTime();
+            const response = await fetch(`/api/file-matching/enhanced-preview?_t=${timestamp}`, {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                }
+            });
+
             const data = await response.json();
 
             if (data.success) {
+                console.log('📊 Preview data received:', {
+                    totalContacts: data.statistics.totalContacts,
+                    matched: data.statistics.matched,
+                    manualAssigned: data.statistics.manualAssigned,
+                    autoMatched: data.statistics.autoMatched
+                });
+
                 this.matchingResults = data.preview;
                 this.displayEnhancedMatchingResults(data.preview, data.statistics);
 
@@ -473,19 +502,22 @@ class FileMatchingApp {
         const isAutoMatch = item.matchedFile?.matchingMethod === 'contact_name';
         const isManualAssignment = item.matchedFile?.matchingMethod === 'manual_assignment';
         const canToggleSending = item.canToggleSending;
+        const hasFileError = item.fileError || false;
 
         return `
-            <tr class="${!item.sendingEnabled ? 'table-secondary' : ''}">
+            <tr class="${!item.sendingEnabled ? 'table-secondary' : hasFileError ? 'table-warning' : ''}">
                 <td>
                     <strong>${contactName}</strong>
                     ${item.contact.fileName ? `<br><small class="text-muted">Specified: ${item.contact.fileName}</small>` : ''}
+                    ${hasFileError ? '<br><small class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>File issue detected</small>' : ''}
                 </td>
                 <td><span class="badge bg-secondary">${item.contact.number}</span></td>
                 <td>
                     ${item.matchedFile ?
-                        `<span class="badge bg-success">${item.matchedFile.fileName}</span>
+                        `<span class="badge bg-${hasFileError ? 'warning' : 'success'}">${item.matchedFile.fileName}</span>
                          <br><small class="text-muted">${this.formatFileSize(item.matchedFile.size)}</small>
-                         ${isManualAssignment ? '<br><small class="text-info"><i class="fas fa-hand-paper me-1"></i>Manual</small>' : ''}` :
+                         ${isManualAssignment ? '<br><small class="text-info"><i class="fas fa-hand-paper me-1"></i>Manual</small>' : ''}
+                         ${hasFileError ? '<br><small class="text-danger">File may not exist</small>' : ''}` :
                         '<span class="text-muted">No match found</span>'
                     }
                 </td>
@@ -499,7 +531,7 @@ class FileMatchingApp {
                     }
                 </td>
                 <td>
-                    ${item.status === 'matched' ?
+                    ${item.status === 'matched' && !hasFileError ?
                         `<div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox"
                                    id="sending_${contactName.replace(/\s+/g, '_')}"
@@ -510,7 +542,7 @@ class FileMatchingApp {
                                 ${item.sendingEnabled ? 'Enabled' : 'Disabled'}
                             </label>
                         </div>` :
-                        '<span class="text-muted">N/A</span>'
+                        hasFileError ? '<span class="text-danger">File Error</span>' : '<span class="text-muted">N/A</span>'
                     }
                 </td>
                 <td>
@@ -525,6 +557,13 @@ class FileMatchingApp {
                                      onclick="removeManualAssignment('${contactName}')"
                                      title="Remove Manual Assignment">
                                 <i class="fas fa-unlink"></i>
+                            </button>` : ''
+                        }
+                        ${hasFileError ?
+                            `<button class="btn btn-outline-warning btn-sm"
+                                     onclick="app.refreshFileStatus('${contactName}')"
+                                     title="Refresh File Status">
+                                <i class="fas fa-sync"></i>
                             </button>` : ''
                         }
                     </div>
@@ -764,25 +803,77 @@ class FileMatchingApp {
     }
 
     showValidationSummary() {
-        // Hide current item
-        document.getElementById('currentValidationItem').style.display = 'none';
+        const modal = document.getElementById('validationSummaryModal');
+        const content = document.getElementById('validationSummaryContent');
 
-        // Hide action buttons
-        document.getElementById('skipCurrentBtn').style.display = 'none';
-        document.getElementById('changeFileBtn').style.display = 'none';
-        document.getElementById('confirmCurrentBtn').style.display = 'none';
+        const totalValidated = this.validationResults.confirmed.length +
+                              this.validationResults.changed.length;
 
-        // Update progress to 100%
-        document.getElementById('validationProgressBar').style.width = '100%';
-        document.getElementById('validationCounter').textContent = `${this.validationQueue.length} of ${this.validationQueue.length}`;
+        content.innerHTML = `
+            <div class="row text-center mb-4">
+                <div class="col-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body p-3">
+                            <h4 class="mb-1">${this.validationResults.confirmed.length}</h4>
+                            <small>Confirmed</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body p-3">
+                            <h4 class="mb-1">${this.validationResults.changed.length}</h4>
+                            <small>Changed</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body p-3">
+                            <h4 class="mb-1">${this.validationResults.skipped.length}</h4>
+                            <small>Skipped</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-        // Update summary counts
-        document.getElementById('confirmedCount').textContent = this.validationResults.confirmed.length;
-        document.getElementById('changedCount').textContent = this.validationResults.changed.length;
-        document.getElementById('skippedCount').textContent = this.validationResults.skipped.length;
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>${totalValidated} contacts</strong> will receive messages with files.
+                <strong>${this.validationResults.skipped.length} contacts</strong> will be skipped.
+            </div>
 
-        // Show summary
-        document.getElementById('validationSummary').style.display = 'block';
+            ${totalValidated > 0 ? `
+                <h6>Contacts to receive messages:</h6>
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Contact</th>
+                                <th>File</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${[...this.validationResults.confirmed, ...this.validationResults.changed].map(item => `
+                                <tr>
+                                    <td>${item.contact.name || item.contact.nama}</td>
+                                    <td><small>${item.matchedFile.fileName}</small></td>
+                                    <td>
+                                        <span class="badge bg-${item.matchedFile.matchingMethod === 'user_selected' ? 'info' : 'success'}">
+                                            ${item.matchedFile.matchingMethod === 'user_selected' ? 'Changed' : 'Confirmed'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            ` : ''}
+        `;
+
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
     }
 
     async proceedWithValidated() {
@@ -801,12 +892,11 @@ class FileMatchingApp {
             const result = await response.json();
 
             if (result.success) {
-                this.showAlert('Validation completed successfully! You can now proceed to the Blast tab.', 'success');
-
-                // Switch to blast tab
-                const blastTab = document.getElementById('blast-files-tab');
-                const tab = new bootstrap.Tab(blastTab);
-                tab.show();
+                // Hide current validation section
+                this.hideValidationSection();
+                
+                // Show validation summary modal
+                this.showValidationSummary();
             } else {
                 throw new Error(result.error || 'Failed to save validation results');
             }
@@ -946,11 +1036,15 @@ class FileMatchingApp {
                 return;
             }
 
-            // Store blast parameters for validation flow
+            // Store blast parameters for later use
             this.blastParams = { message, delay, retryAttempts };
 
-            // Start validation process
-            await this.startFileMatchValidation();
+            // Show simple confirmation dialog
+            const confirmed = await this.showBlastConfirmation();
+            if (confirmed) {
+                // Proceed directly with sending without validation
+                await this.proceedWithoutValidation();
+            }
 
         } catch (error) {
             console.error('Error starting blast with files:', error);
@@ -1158,8 +1252,12 @@ class FileMatchingApp {
             // Store blast parameters for later use
             this.blastParams = { message, delay, retryAttempts };
 
-            // Start validation process
-            await this.startFileMatchValidation();
+            // Show simple confirmation dialog
+            const confirmed = await this.showBlastConfirmation();
+            if (confirmed) {
+                // Proceed directly with sending without validation
+                await this.proceedWithoutValidation();
+            }
 
         } catch (error) {
             console.error('Error starting blast:', error);
@@ -1168,6 +1266,81 @@ class FileMatchingApp {
             this.hideLoading();
             this.hideBlastProgress();
         }
+    }
+
+    async showBlastConfirmation() {
+        return new Promise((resolve) => {
+            // Create a simple confirmation modal
+            const confirmationHtml = `
+                <div class="modal fade" id="blastConfirmationModal" tabindex="-1" data-bs-backdrop="static">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Confirm Blast Sending
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Are you sure you want to send the blast messages?</strong>
+                                </div>
+                                <p>This will send messages with attached files to all selected contacts. This action cannot be undone.</p>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Files will be automatically matched to contacts based on their names.
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="cancelBlastBtn">
+                                    <i class="fas fa-times me-2"></i>
+                                    Cancel
+                                </button>
+                                <button type="button" class="btn btn-success" id="confirmBlastBtn">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Yes, Send Messages
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remove existing modal if any
+            const existingModal = document.getElementById('blastConfirmationModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', confirmationHtml);
+
+            // Set up event listeners
+            const modal = new bootstrap.Modal(document.getElementById('blastConfirmationModal'));
+            const confirmBtn = document.getElementById('confirmBlastBtn');
+            const cancelBtn = document.getElementById('cancelBlastBtn');
+
+            confirmBtn.onclick = () => {
+                modal.hide();
+                resolve(true);
+            };
+
+            cancelBtn.onclick = () => {
+                modal.hide();
+                resolve(false);
+            };
+
+            // Clean up modal after it's hidden
+            document.getElementById('blastConfirmationModal').addEventListener('hidden.bs.modal', () => {
+                document.getElementById('blastConfirmationModal').remove();
+            });
+
+            // Show modal
+            modal.show();
+        });
     }
 
     async startFileMatchValidation() {
@@ -1260,9 +1433,38 @@ class FileMatchingApp {
             </div>
         `;
 
+        // Set up event listeners for modal buttons
+        this.setupModalEventListeners();
+
         // Show modal
         const bootstrapModal = new bootstrap.Modal(modal);
         bootstrapModal.show();
+    }
+
+    setupModalEventListeners() {
+        // Skip contact button in modal
+        const skipContactBtn = document.getElementById('skipContactBtn');
+        if (skipContactBtn) {
+            // Remove any existing event listener to prevent duplicates
+            skipContactBtn.onclick = null;
+            skipContactBtn.onclick = () => this.skipCurrentContact();
+        }
+
+        // Change file button in modal
+        const changeFileBtn = document.getElementById('changeFileBtn');
+        if (changeFileBtn) {
+            // Remove any existing event listener to prevent duplicates
+            changeFileBtn.onclick = null;
+            changeFileBtn.onclick = () => this.showFileSelectionModal();
+        }
+
+        // Confirm match button in modal
+        const confirmMatchBtn = document.getElementById('confirmMatchBtn');
+        if (confirmMatchBtn) {
+            // Remove any existing event listener to prevent duplicates
+            confirmMatchBtn.onclick = null;
+            confirmMatchBtn.onclick = () => this.confirmCurrentMatch();
+        }
     }
 
     confirmCurrentMatch() {
@@ -1391,77 +1593,25 @@ class FileMatchingApp {
     }
 
     showValidationSummary() {
-        const modal = document.getElementById('validationSummaryModal');
-        const content = document.getElementById('validationSummaryContent');
+        // Hide current item
+        document.getElementById('currentValidationItem').style.display = 'none';
 
-        const totalValidated = this.validationResults.confirmed.length +
-                              this.validationResults.changed.length;
+        // Hide action buttons
+        document.getElementById('skipCurrentBtn').style.display = 'none';
+        document.getElementById('changeFileBtn').style.display = 'none';
+        document.getElementById('confirmCurrentBtn').style.display = 'none';
 
-        content.innerHTML = `
-            <div class="row text-center mb-4">
-                <div class="col-4">
-                    <div class="card bg-success text-white">
-                        <div class="card-body p-3">
-                            <h4 class="mb-1">${this.validationResults.confirmed.length}</h4>
-                            <small>Confirmed</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="card bg-info text-white">
-                        <div class="card-body p-3">
-                            <h4 class="mb-1">${this.validationResults.changed.length}</h4>
-                            <small>Changed</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="card bg-warning text-white">
-                        <div class="card-body p-3">
-                            <h4 class="mb-1">${this.validationResults.skipped.length}</h4>
-                            <small>Skipped</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        // Update progress to 100%
+        document.getElementById('validationProgressBar').style.width = '100%';
+        document.getElementById('validationCounter').textContent = `${this.validationQueue.length} of ${this.validationQueue.length}`;
 
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                <strong>${totalValidated} contacts</strong> will receive messages with files.
-                <strong>${this.validationResults.skipped.length} contacts</strong> will be skipped.
-            </div>
+        // Update summary counts
+        document.getElementById('confirmedCount').textContent = this.validationResults.confirmed.length;
+        document.getElementById('changedCount').textContent = this.validationResults.changed.length;
+        document.getElementById('skippedCount').textContent = this.validationResults.skipped.length;
 
-            ${totalValidated > 0 ? `
-                <h6>Contacts to receive messages:</h6>
-                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Contact</th>
-                                <th>File</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${[...this.validationResults.confirmed, ...this.validationResults.changed].map(item => `
-                                <tr>
-                                    <td>${item.contact.name || item.contact.nama}</td>
-                                    <td><small>${item.matchedFile.fileName}</small></td>
-                                    <td>
-                                        <span class="badge bg-${item.matchedFile.matchingMethod === 'user_selected' ? 'info' : 'success'}">
-                                            ${item.matchedFile.matchingMethod === 'user_selected' ? 'Changed' : 'Confirmed'}
-                                        </span>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            ` : ''}
-        `;
-
-        const bootstrapModal = new bootstrap.Modal(modal);
-        bootstrapModal.show();
+        // Show summary
+        document.getElementById('validationSummary').style.display = 'block';
     }
 
     async proceedWithValidatedSending() {
@@ -1480,16 +1630,41 @@ class FileMatchingApp {
                 return;
             }
 
+            console.log('🔍 Validated contacts for final validation:', validatedContacts);
+
+            // Validate assignments before sending (these should already have matchedFile data)
+            const validationResult = await this.validateAssignmentsBeforeSending(validatedContacts);
+
+            if (!validationResult.success) {
+                this.showAlert(validationResult.message, 'danger');
+                return;
+            }
+
+            if (validationResult.validContacts.length === 0) {
+                this.showAlert('No valid assignments found. All contacts have been excluded due to missing files or manual removal.', 'warning');
+                return;
+            }
+
+            // Show validation summary if some contacts were excluded
+            if (validationResult.excludedContacts.length > 0) {
+                const proceed = await this.showAssignmentValidationSummary(validationResult);
+                if (!proceed) {
+                    return;
+                }
+            }
+
             this.showLoading('Sending blast messages with validated files...');
             this.showBlastProgress();
 
+            // For validated contacts, we can send them directly as validatedContacts
+            // since they already have the proper structure from the validation process
             const response = await fetch('/api/messages/blast-with-files', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    validatedContacts: validatedContacts,
+                    validatedContacts: validationResult.validContacts,
                     message: this.blastParams.message,
                     delay: this.blastParams.delay,
                     retryAttempts: this.blastParams.retryAttempts
@@ -1522,17 +1697,93 @@ class FileMatchingApp {
 
     async proceedWithoutValidation() {
         try {
-            this.showLoading('Sending blast messages with files...');
-            this.showBlastProgress();
+            this.showLoading('Validating assignments and files...');
 
             // Get selected contacts for the blast
+            console.log('🔍 Getting selected contacts...');
             const contactsResponse = await fetch('/api/contacts?selected=true');
             const contactsData = await contactsResponse.json();
+
+            console.log('📋 Selected contacts response:', contactsData);
 
             if (!contactsData.success || contactsData.contacts.length === 0) {
                 this.showAlert('No contacts selected. Please select contacts first.', 'danger');
                 return;
             }
+
+            console.log('👥 Selected contacts for validation:', contactsData.contacts);
+
+            // The issue might be that selected contacts don't have matchedFile data
+            // Let's get the enhanced preview to get contacts with file matching data
+            console.log('🔍 Getting enhanced preview for file matching data...');
+            const previewResponse = await fetch('/api/file-matching/enhanced-preview');
+            const previewData = await previewResponse.json();
+
+            if (!previewData.success) {
+                this.showAlert('Failed to get file matching data for validation', 'danger');
+                return;
+            }
+
+            console.log('👀 Enhanced preview data:', previewData);
+
+            // Filter preview results to only include selected contacts that have matched files
+            const selectedContactNumbers = contactsData.contacts.map(c => c.number || c.nomor);
+            console.log('📞 Selected contact numbers:', selectedContactNumbers);
+
+            const contactsWithFiles = previewData.preview.filter(item => {
+                const contactNumber = item.contact.number;
+                const isSelected = selectedContactNumbers.includes(contactNumber);
+                const hasMatchedFile = item.status === 'matched' && item.matchedFile;
+
+                console.log(`Contact ${item.contact.name}: selected=${isSelected}, hasFile=${hasMatchedFile}`);
+
+                return isSelected && hasMatchedFile;
+            }).map(item => ({
+                // Convert preview format to contact format expected by validation
+                name: item.contact.name,
+                number: item.contact.number,
+                matchedFile: item.matchedFile,
+                sendingEnabled: item.sendingEnabled,
+                originalData: item.contact.originalData
+            }));
+
+            console.log('📁 Contacts with files for validation:', contactsWithFiles);
+
+            // Validate assignments before sending
+            const validationResult = await this.validateAssignmentsBeforeSending(contactsWithFiles);
+
+            if (!validationResult.success) {
+                this.showAlert(validationResult.message, 'danger');
+                return;
+            }
+
+            if (validationResult.validContacts.length === 0) {
+                this.showAlert('No valid assignments found. All contacts have been excluded due to missing files or manual removal.', 'warning');
+                return;
+            }
+
+            // Show validation summary if some contacts were excluded
+            if (validationResult.excludedContacts.length > 0) {
+                const proceed = await this.showAssignmentValidationSummary(validationResult);
+                if (!proceed) {
+                    return;
+                }
+            }
+
+            this.showLoading('Sending blast messages with files...');
+            this.showBlastProgress();
+
+            // Convert validated contacts back to original format for backend
+            const originalContacts = validationResult.validContacts.map(contact => {
+                return contact.originalData || {
+                    name: contact.name,
+                    number: contact.number,
+                    // Include any other original contact fields
+                    ...contact
+                };
+            });
+
+            console.log('📤 Sending to backend - original contacts:', originalContacts);
 
             const response = await fetch('/api/messages/blast-with-files', {
                 method: 'POST',
@@ -1540,7 +1791,7 @@ class FileMatchingApp {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    contacts: contactsData.contacts,
+                    contacts: originalContacts,
                     message: this.blastParams.message,
                     delay: this.blastParams.delay,
                     retryAttempts: this.blastParams.retryAttempts
@@ -1569,6 +1820,255 @@ class FileMatchingApp {
             this.hideLoading();
             this.hideBlastProgress();
         }
+    }
+
+    /**
+     * Validate assignments before sending to ensure files exist and haven't been manually removed
+     */
+    async validateAssignmentsBeforeSending(contacts) {
+        try {
+            console.log('🔍 Starting assignment validation...');
+            console.log('📋 Input contacts:', contacts);
+
+            // Get current file list from server
+            const filesResponse = await fetch('/api/file-matching/documents');
+            const filesData = await filesResponse.json();
+
+            if (!filesData.success) {
+                console.error('❌ Failed to get file list:', filesData);
+                return {
+                    success: false,
+                    message: 'Failed to retrieve current file list for validation'
+                };
+            }
+
+            const availableFiles = filesData.files;
+            console.log('📁 Available files:', availableFiles.map(f => f.fileName));
+
+            const validContacts = [];
+            const excludedContacts = [];
+
+            // Get enhanced preview to check for manual assignments and sending status
+            const previewResponse = await fetch('/api/file-matching/enhanced-preview');
+            const previewData = await previewResponse.json();
+
+            if (!previewData.success) {
+                console.error('❌ Failed to get preview data:', previewData);
+                return {
+                    success: false,
+                    message: 'Failed to retrieve assignment status for validation'
+                };
+            }
+
+            const previewResults = previewData.preview;
+            console.log('👀 Preview results:', previewResults);
+
+            for (const contact of contacts) {
+                const contactName = contact.name || contact.nama || 'Unknown';
+                console.log(`\n🔍 Validating contact: ${contactName}`);
+                console.log('📄 Contact data:', contact);
+
+                let isValid = true;
+                let exclusionReason = '';
+
+                // Find the contact in preview results to check sending status
+                const previewContact = previewResults.find(item => {
+                    const itemName = item.contact.name || item.contact.nama || 'Unknown';
+                    return itemName === contactName;
+                });
+
+                console.log('👤 Preview contact found:', previewContact);
+
+                // Check if sending is disabled for this contact
+                if (previewContact && !previewContact.sendingEnabled) {
+                    isValid = false;
+                    exclusionReason = 'Sending disabled for this contact';
+                    console.log('❌ Excluded: Sending disabled');
+                }
+                // Check if contact has a matched file
+                else if (!contact.matchedFile) {
+                    isValid = false;
+                    exclusionReason = 'No file assigned to this contact';
+                    console.log('❌ Excluded: No matched file');
+                }
+                // Check if the assigned file still exists in the system
+                else {
+                    const assignedFileName = contact.matchedFile.fileName;
+                    console.log(`🔍 Checking if file exists: ${assignedFileName}`);
+
+                    const fileExists = availableFiles.some(file => {
+                        console.log(`   Comparing: "${file.fileName}" === "${assignedFileName}"`);
+                        return file.fileName === assignedFileName;
+                    });
+
+                    console.log(`📁 File exists: ${fileExists}`);
+
+                    if (!fileExists) {
+                        isValid = false;
+                        exclusionReason = `Assigned file "${assignedFileName}" no longer exists in the system`;
+                        console.log('❌ Excluded: File not found');
+                    } else {
+                        console.log('✅ File validation passed');
+                    }
+                }
+
+                if (isValid) {
+                    console.log('✅ Contact is VALID');
+                    validContacts.push(contact);
+                } else {
+                    console.log(`❌ Contact EXCLUDED: ${exclusionReason}`);
+                    excludedContacts.push({
+                        contact: contact,
+                        reason: exclusionReason
+                    });
+                }
+            }
+
+            console.log('\n📊 Validation Summary:');
+            console.log(`Total: ${contacts.length}, Valid: ${validContacts.length}, Excluded: ${excludedContacts.length}`);
+            console.log('✅ Valid contacts:', validContacts.map(c => c.name || c.nama));
+            console.log('❌ Excluded contacts:', excludedContacts.map(e => `${e.contact.name || e.contact.nama}: ${e.reason}`));
+
+            return {
+                success: true,
+                validContacts: validContacts,
+                excludedContacts: excludedContacts,
+                totalContacts: contacts.length,
+                validCount: validContacts.length,
+                excludedCount: excludedContacts.length
+            };
+
+        } catch (error) {
+            console.error('Error validating assignments:', error);
+            return {
+                success: false,
+                message: 'Error validating assignments: ' + error.message
+            };
+        }
+    }
+
+    /**
+     * Show assignment validation summary modal
+     */
+    async showAssignmentValidationSummary(validationResult) {
+        return new Promise((resolve) => {
+            const modalHtml = `
+                <div class="modal fade" id="assignmentValidationModal" tabindex="-1" data-bs-backdrop="static">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                    Assignment Validation Results
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row text-center mb-4">
+                                    <div class="col-4">
+                                        <div class="card bg-info text-white">
+                                            <div class="card-body p-3">
+                                                <h4 class="mb-1">${validationResult.totalContacts}</h4>
+                                                <small>Total Contacts</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body p-3">
+                                                <h4 class="mb-1">${validationResult.validCount}</h4>
+                                                <small>Valid for Sending</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="card bg-warning text-white">
+                                            <div class="card-body p-3">
+                                                <h4 class="mb-1">${validationResult.excludedCount}</h4>
+                                                <small>Excluded</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>${validationResult.excludedCount} contacts</strong> have been excluded from sending due to missing files or manual removal.
+                                </div>
+
+                                ${validationResult.excludedCount > 0 ? `
+                                    <h6>Excluded Contacts:</h6>
+                                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Contact</th>
+                                                    <th>Reason</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${validationResult.excludedContacts.map(item => `
+                                                    <tr>
+                                                        <td>${item.contact.name || item.contact.nama || 'Unknown'}</td>
+                                                        <td><small class="text-muted">${item.reason}</small></td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ` : ''}
+
+                                <div class="alert alert-info mt-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Only <strong>${validationResult.validCount} contacts</strong> will receive messages.
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="cancelAssignmentValidationBtn">
+                                    <i class="fas fa-times me-2"></i>
+                                    Cancel
+                                </button>
+                                <button type="button" class="btn btn-success" id="proceedAssignmentValidationBtn">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Proceed with ${validationResult.validCount} Contacts
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remove existing modal if any
+            const existingModal = document.getElementById('assignmentValidationModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            // Set up event listeners
+            const modal = new bootstrap.Modal(document.getElementById('assignmentValidationModal'));
+            const proceedBtn = document.getElementById('proceedAssignmentValidationBtn');
+            const cancelBtn = document.getElementById('cancelAssignmentValidationBtn');
+
+            proceedBtn.onclick = () => {
+                modal.hide();
+                resolve(true);
+            };
+
+            cancelBtn.onclick = () => {
+                modal.hide();
+                resolve(false);
+            };
+
+            // Clean up modal after it's hidden
+            document.getElementById('assignmentValidationModal').addEventListener('hidden.bs.modal', () => {
+                document.getElementById('assignmentValidationModal').remove();
+            });
+
+            // Show modal
+            modal.show();
+        });
     }
 
     getFileType(extension) {
@@ -1810,10 +2310,24 @@ class FileMatchingApp {
                 return;
             }
 
-            const response = await fetch('/api/file-matching/manual-assignment', {
+            console.log('📝 Starting manual assignment:', {
+                contact: contactSelect.value,
+                file: this.selectedFile.fileName,
+                type: assignmentType
+            });
+
+            // Show loading state
+            this.showLoading('Assigning file to contact...');
+
+            // Add cache-busting param and no-cache headers
+            const timestamp = new Date().getTime();
+            const response = await fetch(`/api/file-matching/manual-assignment?_t=${timestamp}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 },
                 body: JSON.stringify({
                     contactName: contactSelect.value,
@@ -1827,23 +2341,37 @@ class FileMatchingApp {
                 throw new Error(data.error || 'Failed to assign file');
             }
 
+            console.log('✅ Manual assignment successful:', data);
+            console.log('📋 Assignment data received:', data.assignmentData);
+
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('manualAssignmentModal'));
             modal.hide();
 
-            // Refresh preview
+            // Clear any cached data and force refresh
+            this.matchingResults = null;
+
+            // Force refresh preview to show new assignment immediately
+            console.log('🔄 Refreshing preview after manual assignment...');
             await this.previewMatching();
 
             this.showAlert(`File "${this.selectedFile.fileName}" assigned to "${contactSelect.value}"`, 'success');
         } catch (error) {
             console.error('Error assigning file:', error);
             this.showAlert('Error assigning file: ' + error.message, 'danger');
+        } finally {
+            this.hideLoading();
         }
     }
 
     async removeManualAssignment(contactName) {
         if (confirm(`Remove manual file assignment for ${contactName}?`)) {
             try {
+                console.log('🗑️ Starting manual assignment removal for:', contactName);
+
+                // Show loading state
+                this.showLoading('Removing manual assignment...');
+
                 const response = await fetch(`/api/file-matching/manual-assignment/${encodeURIComponent(contactName)}`, {
                     method: 'DELETE',
                     headers: {
@@ -1856,13 +2384,47 @@ class FileMatchingApp {
                     throw new Error(data.error || 'Failed to remove manual assignment');
                 }
 
+                console.log('✅ Manual assignment removal successful:', data);
+
+                // Clear any cached data and force refresh
+                this.matchingResults = null;
+
                 // Refresh preview to show changes
+                console.log('🔄 Refreshing preview after manual assignment removal...');
                 await this.previewMatching();
-                this.showAlert(`Manual assignment removed for ${contactName}`, 'info');
+
+                const message = data.removedFile
+                    ? `Manual assignment removed for ${contactName} (file: ${data.removedFile})`
+                    : `Manual assignment removed for ${contactName}`;
+
+                this.showAlert(message, 'info');
             } catch (error) {
                 console.error('Error removing assignment:', error);
                 this.showAlert('Error removing assignment: ' + error.message, 'danger');
+            } finally {
+                this.hideLoading();
             }
+        }
+    }
+
+    /**
+     * Refresh file status for a specific contact
+     */
+    async refreshFileStatus(contactName) {
+        try {
+            console.log('🔄 Refreshing file status for:', contactName);
+            this.showLoading('Refreshing file status...');
+
+            // Force refresh preview to check current file status
+            this.matchingResults = null;
+            await this.previewMatching();
+
+            this.showAlert(`File status refreshed for ${contactName}`, 'info');
+        } catch (error) {
+            console.error('Error refreshing file status:', error);
+            this.showAlert('Error refreshing file status: ' + error.message, 'danger');
+        } finally {
+            this.hideLoading();
         }
     }
 }

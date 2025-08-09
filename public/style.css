@@ -5,9 +5,436 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* ===== DYNAMIC NAVBAR STYLES ===== */
+
+/* Navbar Brand */
 .navbar-brand {
     font-weight: bold;
     font-size: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.navbar-brand:hover {
+    transform: scale(1.05);
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Navbar Links */
+#dynamic-navbar .nav-link {
+    position: relative;
+    padding: 0.5rem 1rem;
+    margin: 0 0.25rem;
+    border-radius: 0.375rem;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#dynamic-navbar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+#dynamic-navbar .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+}
+
+#dynamic-navbar .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 2px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 1px;
+}
+
+/* Navbar Icons */
+#dynamic-navbar .nav-link i {
+    transition: transform 0.2s ease;
+}
+
+#dynamic-navbar .nav-link:hover i {
+    transform: scale(1.1);
+}
+
+/* Badges */
+#dynamic-navbar .badge {
+    font-size: 0.7rem;
+    padding: 0.25em 0.5em;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Mobile Navbar Toggler */
+#dynamic-navbar .navbar-toggler {
+    border: none;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.3s ease;
+}
+
+#dynamic-navbar .navbar-toggler:focus {
+    box-shadow: none;
+}
+
+#dynamic-navbar .navbar-toggler:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#dynamic-navbar .navbar-toggler-icon {
+    transition: transform 0.3s ease;
+}
+
+#dynamic-navbar .navbar-toggler[aria-expanded="true"] .navbar-toggler-icon {
+    transform: rotate(90deg);
+}
+
+/* Mobile Menu Animation */
+#dynamic-navbar .navbar-collapse {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Dropdown Menus */
+#dynamic-navbar .dropdown-menu {
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0;
+    margin-top: 0.5rem;
+    animation: dropdownFadeIn 0.3s ease;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#dynamic-navbar .dropdown-item {
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+    border-radius: 0.25rem;
+    margin: 0 0.5rem;
+}
+
+#dynamic-navbar .dropdown-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+}
+
+#dynamic-navbar .dropdown-item i {
+    width: 1.2rem;
+    text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 991.98px) {
+    #dynamic-navbar .navbar-nav {
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        margin-top: 1rem;
+    }
+
+    #dynamic-navbar .nav-link {
+        margin: 0.25rem 0;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+    }
+
+    #dynamic-navbar .nav-link.active::after {
+        display: none;
+    }
+
+    #dynamic-navbar .nav-link.active {
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    #dynamic-navbar .dropdown-menu {
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-left: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    #dynamic-navbar .dropdown-item {
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    #dynamic-navbar .dropdown-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+}
+
+@media (max-width: 575.98px) {
+    #dynamic-navbar .navbar-brand {
+        font-size: 1.25rem;
+    }
+
+    #dynamic-navbar .nav-link {
+        font-size: 0.95rem;
+    }
+}
+
+/* Loading Animation for Navbar */
+.navbar-loading {
+    opacity: 0;
+    animation: navbarFadeIn 0.5s ease forwards;
+}
+
+@keyframes navbarFadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+/* ===== CONNECTION STATUS PAGE STYLES ===== */
+
+/* Step List Styles */
+.step-list {
+    padding: 0;
+    margin: 0;
+}
+
+.step-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.step-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.step-number {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.875rem;
+    margin-right: 1rem;
+    box-shadow: 0 2px 4px rgba(37, 211, 102, 0.3);
+}
+
+.step-content h6 {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.step-content p {
+    margin-bottom: 0;
+    line-height: 1.4;
+}
+
+/* Connection Status Indicator */
+#connectionStatusIndicator {
+    padding: 2rem 1rem;
+}
+
+#connectionStatusIcon {
+    font-size: 0.7rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* QR Code Styles Enhancement */
+.qr-placeholder {
+    padding: 3rem 2rem;
+    border: 2px dashed #dee2e6;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    transition: all 0.3s ease;
+}
+
+.qr-placeholder:hover {
+    border-color: #25d366;
+    background: linear-gradient(135deg, #f8f9fa, #e8f5e8);
+}
+
+.qr-code {
+    max-width: 280px;
+    height: auto;
+    border: 3px solid #25d366;
+    border-radius: 1rem;
+    padding: 1rem;
+    background-color: white;
+    box-shadow: 0 8px 25px rgba(37, 211, 102, 0.2);
+    transition: transform 0.3s ease;
+}
+
+.qr-code:hover {
+    transform: scale(1.02);
+}
+
+/* Connection Status Badge */
+#connectionStatusBadge {
+    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-weight: 500;
+}
+
+#connectionStatusBadge.bg-success {
+    background-color: #25d366 !important;
+}
+
+#connectionStatusBadge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+/* Statistics Cards */
+.stat-item {
+    padding: 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+}
+
+.stat-item h5 {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+}
+
+.stat-item i {
+    opacity: 0.8;
+}
+
+/* Enhanced Card Styles */
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.card-header {
+    border-bottom: 1px solid #e9ecef;
+    font-weight: 600;
+    padding: 1.25rem 1.5rem;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* Button Enhancements */
+.btn-lg {
+    padding: 0.75rem 2rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover {
+    background-color: #1ea952;
+    border-color: #1ea952;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+}
+
+.btn-warning:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+/* Alert Enhancements */
+.alert {
+    border: none;
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    color: #0d47a1;
+    border-left: 4px solid #2196f3;
+}
+
+/* Responsive Improvements */
+@media (max-width: 991.98px) {
+    .step-item {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .step-number {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+        margin-right: 0.75rem;
+    }
+
+    .qr-placeholder {
+        padding: 2rem 1rem;
+    }
+
+    .qr-code {
+        max-width: 240px;
+    }
+
+    .stat-item {
+        margin-bottom: 1rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .card-body {
+        padding: 1rem;
+    }
+
+    .card-header {
+        padding: 1rem;
+    }
+
+    .btn-lg {
+        padding: 0.625rem 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    .qr-code {
+        max-width: 200px;
+    }
+
+    .step-content h6 {
+        font-size: 0.95rem;
+    }
 }
 
 .card {

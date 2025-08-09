@@ -1,0 +1,34 @@
+/* NUCLEAR OPTION - Force hide all modal backdrops */
+.modal-backdrop {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Only show backdrop when modal is actually showing AND body has modal-open */
+body.modal-open .modal.show ~ .modal-backdrop,
+body.modal-open .modal-backdrop.show {
+    display: block !important;
+    opacity: 0.5 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
+/* Instant transition - no fade effect */
+.modal-backdrop.fade {
+    transition: none !important;
+}
+
+/* Ensure backdrop is removed when modal is not showing */
+body:not(.modal-open) .modal-backdrop,
+.modal-backdrop:not(.show) {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* Additional safety - hide any orphaned backdrops */
+.modal-backdrop:not(.show):not(.fade) {
+    display: none !important;
+}

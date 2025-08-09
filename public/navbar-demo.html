@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Navbar Demo - WA Blast</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Dynamic Navbar Container -->
+    <div id="navbar-container"></div>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cogs me-2"></i>
+                            Dynamic Navbar Demo & Testing
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle me-2"></i>About the Dynamic Navbar Component</h6>
+                            <p class="mb-0">This page demonstrates the reusable and dynamic navigation bar component that can be used across all pages in the WA Blast application.</p>
+                        </div>
+
+                        <h6>Features:</h6>
+                        <ul>
+                            <li><strong>Responsive Design:</strong> Automatically adapts to different screen sizes with mobile hamburger menu</li>
+                            <li><strong>Active Page Highlighting:</strong> Automatically highlights the current page in navigation</li>
+                            <li><strong>Dynamic Content:</strong> Menu items can be shown/hidden and updated programmatically</li>
+                            <li><strong>Easy Configuration:</strong> Simple JavaScript configuration for different pages</li>
+                            <li><strong>Smooth Animations:</strong> Hover effects, transitions, and mobile menu animations</li>
+                            <li><strong>Badge Support:</strong> Menu items can display notification badges</li>
+                            <li><strong>Dropdown Menus:</strong> Support for dropdown menu items</li>
+                        </ul>
+
+                        <h6 class="mt-4">Test Controls:</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Menu Item Controls</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-primary" onclick="toggleFileMatching()">
+                                                Toggle File Matching Menu
+                                            </button>
+                                            <button class="btn btn-outline-success" onclick="addBadgeToLogs()">
+                                                Add Badge to Logs
+                                            </button>
+                                            <button class="btn btn-outline-warning" onclick="removeBadgeFromLogs()">
+                                                Remove Badge from Logs
+                                            </button>
+                                            <button class="btn btn-outline-info" onclick="setActiveHome()">
+                                                Set Home as Active
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Custom Navbar Example</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-secondary" onclick="createCustomNavbar()">
+                                                Create Custom Navbar
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="resetNavbar()">
+                                                Reset to Default
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <h6>Usage Example:</h6>
+                            <pre class="bg-light p-3 rounded"><code>// Basic usage - auto-initialize
+&lt;script src="navbar.js"&gt;&lt;/script&gt;
+&lt;script src="navbar-config.js"&gt;&lt;/script&gt;
+
+// Manual initialization
+const navbar = initializeNavbar({
+    brandText: 'My App',
+    theme: 'bg-primary'
+});
+
+// Custom navbar
+const customNavbar = new DynamicNavbar({
+    brandText: 'Custom App',
+    brandIcon: 'fas fa-star'
+});
+
+customNavbar.setMenuItems([
+    { text: 'Home', href: '/', icon: 'fas fa-home' },
+    { text: 'About', href: '/about', icon: 'fas fa-info' }
+]).renderToBody();</code></pre>
+                        </div>
+
+                        <div class="mt-4">
+                            <h6>Responsive Test:</h6>
+                            <p>Resize your browser window or view on mobile to test the responsive hamburger menu functionality.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Dynamic Navbar Scripts -->
+    <script src="navbar.js"></script>
+    <script src="navbar-config.js"></script>
+    
+    <script>
+        let currentNavbar = null;
+        
+        // Initialize navbar when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            currentNavbar = initializeNavbar();
+        });
+
+        function toggleFileMatching() {
+            if (currentNavbar) {
+                const fileMatchingItem = currentNavbar.menuItems.find(item => item.id === 'file-matching');
+                if (fileMatchingItem) {
+                    currentNavbar.toggleMenuItem('file-matching', !fileMatchingItem.visible);
+                }
+            }
+        }
+
+        function addBadgeToLogs() {
+            if (currentNavbar) {
+                currentNavbar.updateBadge('logs', { text: '5', color: 'danger' });
+            }
+        }
+
+        function removeBadgeFromLogs() {
+            if (currentNavbar) {
+                currentNavbar.updateBadge('logs', null);
+            }
+        }
+
+        function setActiveHome() {
+            if (currentNavbar) {
+                currentNavbar.setActiveItem('home');
+            }
+        }
+
+        function createCustomNavbar() {
+            if (currentNavbar) {
+                currentNavbar.destroy();
+            }
+            
+            currentNavbar = new DynamicNavbar({
+                brandText: 'Custom Demo',
+                brandIcon: 'fas fa-star',
+                theme: 'bg-primary'
+            });
+            
+            currentNavbar.setMenuItems([
+                { text: 'Dashboard', href: '#', icon: 'fas fa-tachometer-alt', badge: { text: 'New', color: 'success' } },
+                { text: 'Users', href: '#', icon: 'fas fa-users' },
+                { 
+                    text: 'Settings', 
+                    icon: 'fas fa-cog',
+                    dropdown: [
+                        { text: 'Profile', href: '#', icon: 'fas fa-user' },
+                        { text: 'Preferences', href: '#', icon: 'fas fa-sliders-h' },
+                        { divider: true },
+                        { text: 'Logout', href: '#', icon: 'fas fa-sign-out-alt' }
+                    ]
+                }
+            ]).renderToBody();
+        }
+
+        function resetNavbar() {
+            if (currentNavbar) {
+                currentNavbar.destroy();
+            }
+            currentNavbar = initializeNavbar();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Backdrop Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .test-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .backdrop-count {
+            font-weight: bold;
+            color: #dc3545;
+        }
+        .no-backdrop {
+            color: #198754;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Modal Backdrop Cleanup Test</h1>
+        
+        <div class="test-info">
+            <h5>Current Status</h5>
+            <p>Backdrop Count: <span id="backdropCount" class="backdrop-count">0</span></p>
+            <p>Active Modals: <span id="activeModals">0</span></p>
+            <p>Body Classes: <span id="bodyClasses">none</span></p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Test Actions</h5>
+                <button class="btn btn-primary mb-2" onclick="showTestModal()">Show Test Modal</button><br>
+                <button class="btn btn-success mb-2" onclick="showLoadingModal()">Show Loading Modal</button><br>
+                <button class="btn btn-warning mb-2" onclick="hideAllModals()">Hide All Modals</button><br>
+                <button class="btn btn-danger mb-2" onclick="forceCleanup()">Force Cleanup</button><br>
+                <button class="btn btn-info mb-2" onclick="updateStatus()">Update Status</button><br>
+                <button class="btn btn-secondary mb-2" onclick="clearLog()">Clear Log</button>
+            </div>
+            <div class="col-md-6">
+                <h5>Test Log</h5>
+                <div id="testLog" class="alert alert-secondary" style="height: 300px; overflow-y: auto;">
+                    <p>Ready for testing...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Modal -->
+    <div class="modal fade" id="testModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Test Modal</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>This is a test modal to verify backdrop cleanup.</p>
+                    <p>Close this modal and check if the backdrop disappears properly.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Processing...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="modal-cleanup.js"></script>
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus() {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            const activeModals = document.querySelectorAll('.modal.show');
+            const bodyClasses = document.body.className || 'none';
+
+            document.getElementById('backdropCount').textContent = backdrops.length;
+            document.getElementById('backdropCount').className = backdrops.length > 0 ? 'backdrop-count' : 'no-backdrop';
+            document.getElementById('activeModals').textContent = activeModals.length;
+            document.getElementById('bodyClasses').textContent = bodyClasses;
+
+            log(`Status: ${backdrops.length} backdrops, ${activeModals.length} active modals`);
+        }
+
+        function showTestModal() {
+            log('Showing test modal...');
+            const modal = new bootstrap.Modal(document.getElementById('testModal'));
+            modal.show();
+            setTimeout(updateStatus, 100);
+        }
+
+        function showLoadingModal() {
+            log('Showing loading modal...');
+            const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+            modal.show();
+            setTimeout(updateStatus, 100);
+        }
+
+        function hideAllModals() {
+            log('Hiding all modals...');
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(modalEl => {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) {
+                    modal.hide();
+                }
+            });
+            setTimeout(updateStatus, 200);
+        }
+
+        function forceCleanup() {
+            log('Force cleanup triggered...');
+            if (window.cleanupModalArtifacts) {
+                window.cleanupModalArtifacts();
+                log('✅ Cleanup function called');
+            } else {
+                log('❌ Cleanup function not available');
+            }
+            setTimeout(updateStatus, 100);
+        }
+
+        function clearLog() {
+            document.getElementById('testLog').innerHTML = '<p>Log cleared...</p>';
+        }
+
+        // Auto-update status every 2 seconds
+        setInterval(updateStatus, 2000);
+
+        // Initial status update
+        setTimeout(updateStatus, 500);
+
+        log('Modal backdrop test page loaded');
+    </script>
+</body>
+</html>
