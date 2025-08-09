@@ -2,10 +2,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const logger = require('../utils/logger');
 
-// This service supports both exact filename matching and manual file assignments.
-// Exact filename matching is used when the fileName field matches exactly with a file in the documents folder.
-// Manual assignments are used when exact matching fails or for explicit overrides.
-// Name-based matching has been removed in favor of these more reliable methods.
+// Note: This service now only supports manual file assignments.
+// Name-based matching has been removed to enforce explicit file assignments.
 class FileMatchingService {
     constructor() {
         this.documentsFolder = path.resolve('./documents');
@@ -19,8 +17,7 @@ class FileMatchingService {
     async init() {
         try {
             await fs.ensureDir(this.documentsFolder);
-            await logger.info('File matching service initialized - Supports exact filename matching and manual assignments only');
-            await logger.info('Name-based matching has been removed for improved reliability');
+            await logger.info('File matching service initialized - Manual assignments only');
         } catch (error) {
             await logger.error('Error initializing file matching service', error);
         }
@@ -78,22 +75,6 @@ class FileMatchingService {
         return imageExts.includes(extension.toLowerCase()) ? 'image' : 'document';
     }
 
-    findExactFile(fileName, files) {
-        if (!fileName) return null;
-        return files.find(f => f.fileName === fileName);
-    }
-
-    findMatchingFile(fileName, files) {
-        // This function now just calls findExactFile for exact matching only
-        return this.findExactFile(fileName, files);
-    }
-    
-    findMatchingFileByName(contactName, files) {
-        // This function is kept for backward compatibility but returns null
-        // as we now only support exact filename matches and manual assignments
-        return null;
-    }
-
     async matchContactsWithFiles(contacts, manualAssignments = {}) {
         try {
             const availableFiles = await this.scanDocumentsFolder();
@@ -101,16 +82,14 @@ class FileMatchingService {
             const unmatchedContacts = [];
             const unusedFiles = [...availableFiles];
 
-            await logger.info('Starting file matching', {
+            await logger.info('Starting file matching (manual assignments only)', {
                 totalContacts: contacts.length,
                 availableAssignments: Object.keys(manualAssignments).length
             });
 
             for (const contact of contacts) {
                 const contactName = contact.name || contact.nama || contact.contactName || contact.contact_name;
-                const specifiedFileName = contact.fileName || contact.namaFile || contact.nama_file || contact.file;
                 
-                // Check for manual assignment first
                 if (manualAssignments[contactName]) {
                     const assignment = manualAssignments[contactName];
                     const assignedFile = availableFiles.find(f => f.fileName === assignment.fileName);
@@ -143,42 +122,10 @@ class FileMatchingService {
                     }
                 }
                 
-                // Try exact filename match if no manual assignment
-                if (specifiedFileName) {
-                    const matchedFile = this.findExactFile(specifiedFileName, availableFiles);
-                    
-                    if (matchedFile) {
-                        const PathValidationService = require('./pathValidationService');
-                        const pathValidation = PathValidationService.validateFilePath(matchedFile.fullPath, this.documentsFolder);
-                        
-                        if (pathValidation.valid) {
-                            matchedContacts.push({
-                                ...contact,
-                                matchedFile: {
-                                    fileName: matchedFile.fileName,
-                                    fullPath: pathValidation.sanitizedPath,
-                                    absolutePath: pathValidation.sanitizedPath,
-                                    extension: matchedFile.extension,
-                                    size: matchedFile.size,
-                                    type: this.getFileType(matchedFile.extension),
-                                    validated: true,
-                                    matchingMethod: 'by_filename'
-                                }
-                            });
-                            
-                            const index = unusedFiles.findIndex(f => f.fileName === matchedFile.fileName);
-                            if (index > -1) {
-                                unusedFiles.splice(index, 1);
-                            }
-                            continue;
-                        }
-                    }
-                }
-                
                 unmatchedContacts.push({
                     ...contact,
-                    reason: specifiedFileName ? `File "${specifiedFileName}" not found` : 'No file specified. Please use manual assignment.',
-                    searchTerm: specifiedFileName || contactName || 'unknown'
+                    reason: 'Manual file assignment required. Please assign a file explicitly.',
+                    searchTerm: contactName || 'unknown'
                 });
             }
 
@@ -192,44 +139,15 @@ class FileMatchingService {
                     unmatchedCount: unmatchedContacts.length,
                     totalFiles: availableFiles.length,
                     unusedFilesCount: unusedFiles.length,
-                    manualAssignments: Object.keys(manualAssignments).length,
-                    byFilename: matchedContacts.filter(c => c.matchedFile?.matchingMethod === 'by_filename').length,
-                    manualMatched: matchedContacts.filter(c => c.matchedFile?.matchingMethod === 'manual_assignment').length
+                    manualAssignments: Object.keys(manualAssignments).length
                 }
             };
 
-            await logger.info('File matching completed (exact filename matches and manual assignments)', result.statistics);
+            await logger.info('File matching completed (manual assignments only)', result.statistics);
             return result;
         } catch (error) {
             await logger.error('Error in file matching', error);
             throw error;
-        }
-    }
-
-    async getStatistics() {
-        try {
-            const files = await this.scanDocumentsFolder();
-            return {
-                totalFiles: files.length,
-                supportedFiles: files.filter(f => f.isSupported).length,
-                unsupportedFiles: files.filter(f => !f.isSupported).length,
-                totalSize: files.reduce((total, file) => total + file.size, 0),
-                byExtension: files.reduce((acc, file) => {
-                    const ext = file.extension.toLowerCase();
-                    if (!acc[ext]) acc[ext] = 0;
-                    acc[ext]++;
-                    return acc;
-                }, {})
-            };
-        } catch (error) {
-            await logger.error('Error getting file statistics', error);
-            return {
-                totalFiles: 0,
-                supportedFiles: 0,
-                unsupportedFiles: 0,
-                totalSize: 0,
-                byExtension: {}
-            };
         }
     }
 

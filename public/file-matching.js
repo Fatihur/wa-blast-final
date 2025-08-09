@@ -269,19 +269,15 @@ class FileMatchingApp {
                 console.log('📊 Preview data received:', {
                     totalContacts: data.statistics.totalContacts,
                     matched: data.statistics.matched,
-                    manualAssigned: data.statistics.manualAssigned,
-                    autoMatched: data.statistics.autoMatched
+                    manualAssigned: data.statistics.manualMatched,
+                    autoMatched: 0 // Auto-matching disabled
                 });
 
                 this.matchingResults = data.preview;
                 this.displayEnhancedMatchingResults(data.preview, data.statistics);
 
-                // Show bulk actions if there are automatic matches
-                if (data.statistics.autoMatched > 0) {
-                    this.showBulkActionsSection();
-                } else {
-                    this.hideBulkActionsSection();
-                }
+                // Always hide bulk actions since automatic matching is disabled
+                this.hideBulkActionsSection();
 
                 // Check if validation is required for automatic matches
                 if (data.statistics.requiresValidation) {
@@ -348,9 +344,9 @@ class FileMatchingApp {
         resultsDiv.innerHTML = `
             <div class="alert alert-info mb-3">
                 <i class="fas fa-info-circle me-2"></i>
-                <strong>Smart File Matching:</strong> Files are automatically matched based on contact names.
-                No need to specify file names in your Excel - just ensure your files are named after your contacts
-                (e.g., "John Doe.pdf", "jane_smith.jpg", etc.).
+                <strong>Manual File Assignment:</strong> Files must be manually assigned to contacts.
+                Use the manual assignment feature to link the appropriate files with each contact.
+                This ensures accurate file distribution.
             </div>
             <div class="table-responsive">
                 <table class="table table-striped">
@@ -375,16 +371,16 @@ class FileMatchingApp {
                                     ${item.matchedFile ?
                                         `<span class="badge bg-success">${item.matchedFile.fileName}</span>
                                          <br><small class="text-muted">${this.formatFileSize(item.matchedFile.size)}</small>` :
-                                        '<span class="text-muted">No match found</span>'
+                                        '<span class="text-secondary">-</span>'
                                     }
                                 </td>
                                 <td>
-                                    ${item.matchedFile && item.matchedFile.matchingMethod ?
-                                        `<span class="badge bg-${item.matchedFile.matchingMethod === 'contact_name' ? 'primary' : 'secondary'}">
-                                            <i class="fas fa-${item.matchedFile.matchingMethod === 'contact_name' ? 'user' : 'file'} me-1"></i>
-                                            ${item.matchedFile.matchingMethod === 'contact_name' ? 'By Name' : 'By Filename'}
+                                    ${item.matchedFile ?
+                                        `<span class="badge bg-success">
+                                            <i class="fas fa-file-check me-1"></i>
+                                            Matched
                                          </span>` :
-                                        '<span class="text-muted">-</span>'
+                                        '<span class="text-secondary">-</span>'
                                     }
                                 </td>
                                 <td>
@@ -442,14 +438,6 @@ class FileMatchingApp {
                     </div>
                 </div>
                 <div class="col-2">
-                    <div class="card bg-secondary text-white">
-                        <div class="card-body p-2">
-                            <h6 class="mb-1">${stats.autoMatched}</h6>
-                            <small>Auto</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-2">
                     <div class="card bg-dark text-white">
                         <div class="card-body p-2">
                             <h6 class="mb-1">${stats.manualAssigned}</h6>
@@ -474,8 +462,8 @@ class FileMatchingApp {
         resultsDiv.innerHTML = `
             <div class="alert alert-info mb-3">
                 <i class="fas fa-info-circle me-2"></i>
-                <strong>Enhanced File Matching:</strong> Files are automatically matched by contact names,
-                with options for manual assignment and sending control.
+                <strong>File Matching:</strong> Files match based on exact filenames specified in the contact data. 
+                Only contacts with exactly matching filenames will be matched.
             </div>
             <div class="table-responsive">
                 <table class="table table-striped">
@@ -499,7 +487,6 @@ class FileMatchingApp {
 
     renderEnhancedContactRow(item) {
         const contactName = item.contact.name || item.contact.nama || 'Unnamed Contact';
-        const isAutoMatch = item.matchedFile?.matchingMethod === 'contact_name';
         const isManualAssignment = item.matchedFile?.matchingMethod === 'manual_assignment';
         const canToggleSending = item.canToggleSending;
         const hasFileError = item.fileError || false;
@@ -518,16 +505,16 @@ class FileMatchingApp {
                          <br><small class="text-muted">${this.formatFileSize(item.matchedFile.size)}</small>
                          ${isManualAssignment ? '<br><small class="text-info"><i class="fas fa-hand-paper me-1"></i>Manual</small>' : ''}
                          ${hasFileError ? '<br><small class="text-danger">File may not exist</small>' : ''}` :
-                        '<span class="text-muted">No match found</span>'
+                        '<span class="text-secondary">-</span>'
                     }
                 </td>
                 <td>
                     ${item.matchedFile ?
-                        `<span class="badge bg-${isAutoMatch ? 'primary' : isManualAssignment ? 'info' : 'secondary'}">
-                            <i class="fas fa-${isAutoMatch ? 'user' : isManualAssignment ? 'hand-paper' : 'file'} me-1"></i>
-                            ${isAutoMatch ? 'By Name' : isManualAssignment ? 'Manual' : 'By Filename'}
+                        `<span class="badge bg-primary">
+                            <i class="fas fa-check me-1"></i>
+                            Manual
                          </span>` :
-                        '<span class="text-muted">-</span>'
+                        '<span class="text-secondary">-</span>'
                     }
                 </td>
                 <td>
@@ -1355,14 +1342,10 @@ class FileMatchingApp {
                 throw new Error(data.error || 'Failed to get matching preview');
             }
 
-            // Filter contacts that have matched files by name (automatic matching)
-            const contactsWithAutoMatches = data.preview.filter(item =>
-                item.status === 'matched' &&
-                item.matchedFile &&
-                item.matchedFile.matchingMethod === 'contact_name'
-            );
+            // We no longer need to filter for automatic matches as they are disabled
+            const contactsWithAutoMatches = [];
 
-            if (contactsWithAutoMatches.length === 0) {
+            if (true) {
                 // No automatic matches to validate, proceed directly
                 this.showAlert('No automatic file matches found. Proceeding with specified file matches only.', 'info');
                 await this.proceedWithoutValidation();
@@ -1561,11 +1544,17 @@ class FileMatchingApp {
         `).join('');
     }
 
-    selectFile(fileName) {
+    async selectFile(fileName) {
         const currentItem = this.validationQueue[this.currentValidationIndex];
         const selectedFile = this.documents.find(doc => doc.fileName === fileName);
 
         if (selectedFile) {
+            console.log('📝 File selected during validation:', {
+                contact: currentItem.contact.name,
+                fileName: selectedFile.fileName,
+                previousFile: currentItem.matchedFile?.fileName
+            });
+
             // Update the matched file
             currentItem.matchedFile = {
                 fileName: selectedFile.fileName,
@@ -1576,6 +1565,34 @@ class FileMatchingApp {
                 validated: true,
                 matchingMethod: 'user_selected'
             };
+
+            // Also update manual assignments on the server to ensure consistency
+            try {
+                const contactName = currentItem.contact.name || currentItem.contact.nama;
+                console.log('🔄 Updating manual assignment for:', contactName);
+
+                const response = await fetch('/api/file-matching/manual-assignment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    },
+                    body: JSON.stringify({
+                        contactName: contactName,
+                        fileName: selectedFile.fileName,
+                        assignmentType: 'validation_change'
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    console.log('✅ Manual assignment updated during validation');
+                } else {
+                    console.warn('⚠️ Failed to update manual assignment:', data.error);
+                }
+            } catch (error) {
+                console.error('❌ Error updating manual assignment:', error);
+            }
 
             this.validationResults.changed.push(currentItem);
 
@@ -1848,21 +1865,6 @@ class FileMatchingApp {
             const validContacts = [];
             const excludedContacts = [];
 
-            // Get enhanced preview to check for manual assignments and sending status
-            const previewResponse = await fetch('/api/file-matching/enhanced-preview');
-            const previewData = await previewResponse.json();
-
-            if (!previewData.success) {
-                console.error('❌ Failed to get preview data:', previewData);
-                return {
-                    success: false,
-                    message: 'Failed to retrieve assignment status for validation'
-                };
-            }
-
-            const previewResults = previewData.preview;
-            console.log('👀 Preview results:', previewResults);
-
             for (const contact of contacts) {
                 const contactName = contact.name || contact.nama || 'Unknown';
                 console.log(`\n🔍 Validating contact: ${contactName}`);
@@ -1871,22 +1873,8 @@ class FileMatchingApp {
                 let isValid = true;
                 let exclusionReason = '';
 
-                // Find the contact in preview results to check sending status
-                const previewContact = previewResults.find(item => {
-                    const itemName = item.contact.name || item.contact.nama || 'Unknown';
-                    return itemName === contactName;
-                });
-
-                console.log('👤 Preview contact found:', previewContact);
-
-                // Check if sending is disabled for this contact
-                if (previewContact && !previewContact.sendingEnabled) {
-                    isValid = false;
-                    exclusionReason = 'Sending disabled for this contact';
-                    console.log('❌ Excluded: Sending disabled');
-                }
                 // Check if contact has a matched file
-                else if (!contact.matchedFile) {
+                if (!contact.matchedFile) {
                     isValid = false;
                     exclusionReason = 'No file assigned to this contact';
                     console.log('❌ Excluded: No matched file');
@@ -1909,6 +1897,18 @@ class FileMatchingApp {
                         console.log('❌ Excluded: File not found');
                     } else {
                         console.log('✅ File validation passed');
+
+                        // Update the contact with the latest file information from the server
+                        const latestFileInfo = availableFiles.find(file => file.fileName === assignedFileName);
+                        if (latestFileInfo) {
+                            contact.matchedFile = {
+                                ...contact.matchedFile,
+                                fullPath: latestFileInfo.fullPath,
+                                size: latestFileInfo.size,
+                                lastModified: latestFileInfo.lastModified
+                            };
+                            console.log('🔄 Updated contact with latest file info');
+                        }
                     }
                 }
 

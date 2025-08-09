@@ -347,47 +347,51 @@ router.get('/preview', async (req, res) => {
     try {
         const contacts = contactStorage.getSelectedContacts();
         const files = await fileMatchingService.scanDocumentsFolder();
+        
+        // Get stored manual assignments from session
+        const manualAssignments = req.session?.manualAssignments || {};
 
-        // Create preview using the new name-based matching
+        // Create preview using exact filename matching and manual assignments
         const preview = contacts.map(contact => {
+            const contactName = contact.name || contact.nama || 'Unnamed Contact';
             const specifiedFileName = contact.fileName || contact.namaFile || contact.nama_file || contact.file;
-            const contactName = contact.name || contact.nama || contact.contactName || contact.contact_name;
 
             let matchedFile = null;
             let matchingMethod = '';
 
-            // Try specified filename first (backward compatibility)
-            if (specifiedFileName) {
-                matchedFile = fileMatchingService.findMatchingFile(specifiedFileName, files);
-                if (matchedFile) {
-                    matchingMethod = 'specified_filename';
+            // Check for manual assignment first
+            if (manualAssignments[contactName]) {
+                const assignment = manualAssignments[contactName];
+                const assignedFile = files.find(f => f.fileName === assignment.fileName);
+                
+                if (assignedFile) {
+                    matchedFile = assignedFile;
+                    matchingMethod = 'manual_assignment';
                 }
             }
 
-            // If no match with specified filename, try contact name
-            if (!matchedFile && contactName) {
-                matchedFile = fileMatchingService.findMatchingFileByName(contactName, files);
+            // Look for exact filename match if no manual assignment
+            if (!matchedFile && specifiedFileName) {
+                matchedFile = fileMatchingService.findExactFile(specifiedFileName, files);
                 if (matchedFile) {
-                    matchingMethod = 'contact_name';
+                    matchingMethod = 'by_filename';
                 }
             }
-            
+
             const searchTerm = specifiedFileName || contactName || 'unknown';
             let reason = '';
-
+            
             if (!matchedFile) {
                 if (specifiedFileName) {
-                    reason = `File "${specifiedFileName}" not found`;
-                } else if (contactName) {
-                    reason = `No file found matching contact name "${contactName}"`;
+                    reason = `File "${specifiedFileName}" not found. Use manual assignment.`;
                 } else {
-                    reason = 'No file name specified and no contact name available';
+                    reason = 'No file specified. Please use manual assignment.';
                 }
             }
 
             return {
                 contact: {
-                    name: contact.name || contact.nama || 'Unnamed Contact',
+                    name: contactName,
                     number: contact.number,
                     fileName: specifiedFileName
                 },
@@ -398,19 +402,19 @@ router.get('/preview', async (req, res) => {
                     size: matchedFile.size,
                     type: fileMatchingService.getFileType(matchedFile.extension),
                     matchingMethod: matchingMethod,
-                    requiresValidation: matchingMethod === 'contact_name', // Auto-matched files need validation
-                    validated: false // Will be set to true after user validation
+                    requiresValidation: false, // No validation needed for exact matches or manual assignments
+                    validated: true // Both exact matches and manual assignments are considered validated
                 } : null,
                 status: matchedFile ? 'matched' : 'unmatched',
                 reason: reason,
                 searchTerm: searchTerm,
-                validationRequired: matchedFile && matchingMethod === 'contact_name' // Flag for frontend
+                validationRequired: false // No validation needed for exact matches or manual assignments
             };
         });
 
         const matchedItems = preview.filter(p => p.status === 'matched');
-        const autoMatchedItems = matchedItems.filter(p => p.validationRequired);
-        const manualMatchedItems = matchedItems.filter(p => !p.validationRequired);
+        const byFilenameItems = matchedItems.filter(p => p.matchedFile?.matchingMethod === 'by_filename');
+        const manualMatchedItems = matchedItems.filter(p => p.matchedFile?.matchingMethod === 'manual_assignment');
 
         res.json({
             success: true,
@@ -419,9 +423,9 @@ router.get('/preview', async (req, res) => {
                 totalContacts: contacts.length,
                 matched: matchedItems.length,
                 unmatched: preview.filter(p => p.status === 'unmatched').length,
-                autoMatched: autoMatchedItems.length,
+                byFilename: byFilenameItems.length,
                 manualMatched: manualMatchedItems.length,
-                requiresValidation: autoMatchedItems.length > 0
+                requiresValidation: false // No validation needed for exact matches or manual assignments
             }
         });
     } catch (error) {
@@ -430,51 +434,14 @@ router.get('/preview', async (req, res) => {
     }
 });
 
-// Get validation queue for automatic matches
+// Endpoint kept for API compatibility but returns empty queue
 router.get('/validation-queue', async (req, res) => {
     try {
-        const contacts = contactStorage.getSelectedContacts();
-        const files = await fileMatchingService.scanDocumentsFolder();
-
-        // Filter contacts that have automatic matches (by contact name)
-        const autoMatches = contacts.map(contact => {
-            const contactName = contact.name || contact.nama || contact.contactName || contact.contact_name;
-
-            if (!contactName) return null;
-
-            const matchedFile = fileMatchingService.findMatchingFileByName(contactName, files);
-
-            if (matchedFile) {
-                return {
-                    contact: {
-                        name: contactName,
-                        number: contact.number,
-                        originalData: contact
-                    },
-                    matchedFile: {
-                        fileName: matchedFile.fileName,
-                        fullPath: matchedFile.fullPath,
-                        extension: matchedFile.extension,
-                        size: matchedFile.size,
-                        type: fileMatchingService.getFileType(matchedFile.extension),
-                        matchingMethod: 'contact_name'
-                    }
-                };
-            }
-            return null;
-        }).filter(item => item !== null);
-
-        res.json({
-            success: true,
-            validationQueue: autoMatches,
-            totalAutoMatches: autoMatches.length,
-            availableFiles: files.map(file => ({
-                fileName: file.fileName,
-                fullPath: file.fullPath,
-                extension: file.extension,
-                size: file.size,
-                type: fileMatchingService.getFileType(file.extension)
-            }))
+        // Return empty queue since we only support exact matches and manual assignments
+        return res.json({
+            validationQueue: [],
+            totalAutoMatches: 0,
+            message: 'Validation not required. System uses exact filename matches and manual assignments only.'
         });
     } catch (error) {
         console.error('Error getting validation queue:', error);
@@ -491,10 +458,40 @@ router.post('/save-validation', async (req, res) => {
             return res.status(400).json({ error: 'Validation results are required' });
         }
 
+        console.log('💾 Saving validation results:', {
+            confirmed: validationResults.confirmed?.length || 0,
+            changed: validationResults.changed?.length || 0,
+            skipped: validationResults.skipped?.length || 0
+        });
+
         // Store validation results in session or temporary storage
         req.session = req.session || {};
         req.session.validationResults = validationResults;
-        
+
+        // Initialize manual assignments if not exists
+        req.session.manualAssignments = req.session.manualAssignments || {};
+
+        // Update manual assignments for any changed files during validation
+        const changedContacts = validationResults.changed || [];
+        for (const item of changedContacts) {
+            const contactName = item.contact.name || item.contact.nama;
+            if (contactName && item.matchedFile) {
+                console.log(`📝 Updating manual assignment from validation: ${contactName} -> ${item.matchedFile.fileName}`);
+
+                req.session.manualAssignments[contactName] = {
+                    fileName: item.matchedFile.fileName,
+                    fullPath: item.matchedFile.fullPath,
+                    extension: item.matchedFile.extension,
+                    size: item.matchedFile.size,
+                    lastModified: new Date().toISOString(),
+                    type: item.matchedFile.type,
+                    matchingMethod: 'validation_change',
+                    assignmentType: 'validation_override',
+                    assignedAt: new Date().toISOString()
+                };
+            }
+        }
+
         // Also store validated contacts for use in blast
         req.session.validatedContacts = [
             ...(validationResults.confirmed || []),
@@ -503,6 +500,9 @@ router.post('/save-validation', async (req, res) => {
             ...item.contact,
             matchedFile: item.matchedFile
         }));
+
+        console.log('✅ Validation results saved with manual assignment updates');
+        console.log('📋 Updated manual assignments:', Object.keys(req.session.manualAssignments));
 
         res.json({
             success: true,
@@ -581,17 +581,19 @@ router.post('/manual-assignment', async (req, res) => {
         req.session = req.session || {};
         req.session.manualAssignments = req.session.manualAssignments || {};
 
-        // Create assignment with fresh file data
+        // Create assignment with fresh file data including absolute paths
         const assignmentData = {
             fileName: selectedFile.fileName,
             fullPath: selectedFile.fullPath,
+            absolutePath: path.resolve(selectedFile.fullPath),
             extension: selectedFile.extension,
             size: selectedFile.size,
             lastModified: selectedFile.lastModified,
             type: fileMatchingService.getFileType(selectedFile.extension),
             matchingMethod: 'manual_assignment',
-            assignmentType: assignmentType || 'override', // 'override' or 'new'
-            assignedAt: new Date().toISOString()
+            assignmentType: assignmentType || 'override',
+            assignedAt: new Date().toISOString(),
+            validatedPath: path.resolve(path.join(fileMatchingService.documentsFolder, selectedFile.fileName))
         };
 
         req.session.manualAssignments[contactName] = assignmentData;
@@ -775,7 +777,8 @@ router.get('/enhanced-preview', async (req, res) => {
 
                 matchedFile = {
                     fileName: assignment.fileName,
-                    fullPath: assignment.fullPath,
+                    fullPath: assignment.absolutePath || assignment.validatedPath || assignment.fullPath,
+                    absolutePath: assignment.absolutePath || assignment.validatedPath || path.resolve(assignment.fullPath),
                     extension: assignment.extension,
                     size: assignment.size,
                     type: assignment.type,
@@ -789,25 +792,16 @@ router.get('/enhanced-preview', async (req, res) => {
                 console.log(`❌ No manual assignment found for contact: "${contactName}"`);
             }
 
-            // Try specified filename (backward compatibility) - only if no manual assignment
+            // Try exact filename match - only if no manual assignment
             if (!matchedFile && specifiedFileName) {
-                matchedFile = fileMatchingService.findMatchingFile(specifiedFileName, files);
+                matchedFile = fileMatchingService.findExactFile(specifiedFileName, files);
                 if (matchedFile) {
-                    matchingMethod = 'specified_filename';
-                    sendingEnabled = true; // Specified files are always enabled
+                    matchingMethod = 'by_filename';
+                    sendingEnabled = true; // Exact matches are always enabled
                 }
             }
-
-            // Try contact name matching - only if no manual assignment and no specified file
-            if (!matchedFile && contactName) {
-                matchedFile = fileMatchingService.findMatchingFileByName(contactName, files);
-                if (matchedFile) {
-                    matchingMethod = 'contact_name';
-                    // Check sending preference for automatic matches
-                    const preference = sendingPreferences[contactName];
-                    sendingEnabled = preference !== undefined ? preference.enabled : true;
-                }
-            }
+            
+            // We no longer use contact name matching - only exact filename matches and manual assignments
 
             const searchTerm = specifiedFileName || contactName || 'unknown';
             let reason = '';

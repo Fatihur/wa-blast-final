@@ -370,12 +370,18 @@ router.post('/blast-with-files', async (req, res) => {
                 } : null
             });
 
-            matchingResult = await fileMatchingService.matchContactsWithFiles(contacts);
+            // Get manual assignments from session
+            const manualAssignments = req.session?.manualAssignments || {};
+            console.log('📋 Manual assignments for blast:', manualAssignments);
+
+            // Pass manual assignments to the matching service
+            matchingResult = await fileMatchingService.matchContactsWithFiles(contacts, manualAssignments);
 
             await logger.blast(`File matching completed`, {
                 matched: matchingResult.matched.length,
                 unmatched: matchingResult.unmatched.length,
-                matchingRate: `${Math.round((matchingResult.matched.length / contacts.length) * 100)}%`
+                matchingRate: `${Math.round((matchingResult.matched.length / contacts.length) * 100)}%`,
+                manualAssignmentsUsed: Object.keys(manualAssignments).length
             });
 
             // Log skipped contacts
